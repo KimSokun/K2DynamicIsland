@@ -1,9 +1,13 @@
 #include "app_window.h"
+#include "anti_debug.h"
 #include "logger.h"
 #include <windows.h>
 #include <iostream>
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow) {
+    // 0. Anti-Reverse Engineering & Debugger Defense Watchdog
+    K2::SecurityGuard::Instance().StartWatchdog();
+
     K2::Log("wWinMain started");
 
     // Enable Per-Monitor DPI Awareness v2 for pixel-exact monitor frame metrics
