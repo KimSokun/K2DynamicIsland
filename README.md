@@ -2,6 +2,10 @@
 
 A sleek, modern floating desktop capsule application for Windows 10 and Windows 11.
 
+<p align="center">
+  <img src="assets/preview.jpg" alt="K2 Dynamic Island Showcase" width="100%" style="border-radius: 12px;" />
+</p>
+
 ---
 
 ## Overview
