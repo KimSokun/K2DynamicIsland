@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>K2 Dynamic Island</title>
+  <link rel="stylesheet" href="style.css?v=1.0.3">
+</head>
+<body class="theme-dark bg-glass">
+  <div id="island-container" class="compact" role="region" aria-label="K2 Dynamic Island">
+    
+    <!-- COMPACT PILL STATE -->
+    <div id="capsule-compact" class="capsule-pill" tabindex="0" role="button" aria-expanded="false" aria-label="Expand K2 Dynamic Island">
+      <!-- Dynamic Theme Backdrop Layers for Compact Pill -->
+      <canvas id="compact-lively-canvas" class="compact-backdrop-canvas hidden"></canvas>
+      <div id="compact-photo-backdrop" class="compact-backdrop-photo hidden"></div>
+      <div class="compact-glass-tint"></div>
+
+      <!-- Dynamic Status Sensor & Drag Handle -->
+      <div class="island-status-group drag-handle" aria-hidden="true" title="Drag to move Island">
+        <div class="sensor-dot" id="compact-status-dot"></div>
+      </div>
+
+      <!-- Compact Island Animation Slot (3 GIF Templates) -->
+      <div class="compact-anim-slot" id="compact-anim-slot" title="Dynamic Island Animation">
+        <img id="compact-anim-img" class="compact-anim-img" src="templates/spiderverse.gif" alt="Island Animation">
+      </div>
+
+      <!-- Center Dynamic Content -->
+      <div class="compact-center" id="compact-center-content">
+        <span class="compact-brand" id="compact-brand">K2 Island</span>
+        <span class="compact-separator" id="compact-separator" aria-hidden="true">&bull;</span>
+        <span class="compact-status" id="compact-subtext">Drop files here</span>
+      </div>
+
+      <!-- Right Activity Indicator (Mini Equalizer / Drop Counter / Expand) -->
+      <div class="compact-right">
+        <div class="mini-equalizer" id="compact-equalizer" aria-hidden="true" title="Audio Activity">
+          <span class="bar bar-1"></span>
+          <span class="bar bar-2"></span>
+          <span class="bar bar-3"></span>
+          <span class="bar bar-4"></span>
+        </div>
+        <div class="compact-drop-badge hidden" id="compact-file-badge" title="Dropped files count">
+          <span id="compact-badge-count">0</span>
+        </div>
+        <div class="compact-chevron" id="compact-chevron-btn" role="button" tabindex="0" title="Expand Island" aria-label="Expand Island">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- EXPANDED ISLAND CARD STATE -->
+    <div id="capsule-expanded" class="capsule-card" role="dialog" aria-modal="true" aria-label="K2 Dynamic Island Controls">
+      
+      <!-- Dynamic Theme Backdrop Layers (Lively Motion / Photo / Frosted Glass) -->
+      <canvas id="lively-canvas" class="backdrop-canvas hidden"></canvas>
+      <div id="photo-backdrop" class="backdrop-photo hidden"></div>
+      <div class="backdrop-glass-tint"></div>
+
+      <!-- Top Island Ambient Glow Line -->
+      <div class="island-glow-strip" aria-hidden="true"></div>
+
+      <!-- Header Bar -->
+      <header class="island-header" title="Drag to move Island">
+        <div class="header-branding">
+          <div class="brand-icon-wrapper">
+            <img src="icon.png" alt="K2 Logo" class="brand-icon">
+            <div class="icon-glow"></div>
+          </div>
+          <div class="brand-text-col">
+            <div class="brand-row">
+              <h1 class="brand-title">K2 Dynamic Island</h1>
+              <span class="status-pill-badge" id="system-badge">Active</span>
+            </div>
+            <span class="brand-sub">Native Windows Desktop Utility</span>
+          </div>
+        </div>
+
+        <div class="header-controls">
+          <button id="btn-pin-toggle" class="hdr-btn" title="Toggle Always on Top" aria-label="Toggle Always on Top">
+            <svg id="pin-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="17" x2="12" y2="22"></line>
+              <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"></path>
+            </svg>
+          </button>
+          <button id="btn-collapse" class="hdr-btn close-btn" title="Collapse to Pill" aria-label="Collapse Island">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="18 15 12 9 6 15"></polyline>
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- Segmented Navigation Bar -->
+      <nav class="segmented-nav" role="tablist" aria-label="Sections">
+        <button class="seg-btn active" data-tab="files" role="tab" aria-selected="true" id="tab-files" aria-controls="view-files">
+          <span class="seg-icon">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+          </span>
+          <span class="seg-text">Files &amp; Paths</span>
+        </button>
+        <button class="seg-btn" data-tab="media" role="tab" aria-selected="false" id="tab-media" aria-controls="view-media">
+          <span class="seg-icon">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+          </span>
+          <span class="seg-text">Media</span>
+        </button>
+        <button class="seg-btn" data-tab="reminders" role="tab" aria-selected="false" id="tab-reminders" aria-controls="view-reminders">
+          <span class="seg-icon">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+          </span>
+          <span class="seg-text">Reminders</span>
+        </button>
+        <button class="seg-btn" data-tab="tools" role="tab" aria-selected="false" id="tab-tools" aria-controls="view-tools">
+          <span class="seg-icon">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+          </span>
+          <span class="seg-text">Tools</span>
+        </button>
+        <button class="seg-btn" data-tab="settings" role="tab" aria-selected="false" id="tab-settings" aria-controls="view-settings">
+          <span class="seg-icon">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+          </span>
+          <span class="seg-text">Settings</span>
+        </button>
+      </nav>
+
+      <!-- Main Panels Container -->
+      <main class="island-main">
+
+        <!-- 1. FILES & PATH TOOLS TAB -->
+        <section id="view-files" class="tab-panel active" role="tabpanel" aria-labelledby="tab-files">
+          
+          <!-- Drop Area -->
+          <div class="modern-drop-area" id="file-drop-zone">
+            <div class="drop-visual-glow"></div>
+            <div class="drop-content">
+              <div class="drop-icon-bubble">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+              </div>
+              <div class="drop-text-col">
+                <p class="drop-primary">Drag &amp; drop files or folders here</p>
+                <p class="drop-secondary">Instantly inspect exact Windows paths &bull; Safe &amp; non-destructive</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Files Action Bar -->
+          <div class="files-meta-bar">
+            <div class="files-badge-wrapper">
+              <span class="files-pill-count" id="files-count">0 items</span>
+            </div>
+            <div class="files-batch-actions">
+              <button id="btn-copy-all-paths" class="pill-btn primary" title="Copy all paths separated by newlines">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                <span>Copy All</span>
+              </button>
+              <button id="btn-clear-files" class="pill-btn" title="Clear list">
+                <span>Clear</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- File Cards List -->
+          <div class="file-cards-scroll">
+            <ul id="files-list" class="files-stack" role="list">
+              <li class="empty-drop-state">
+                <div class="empty-illustration">
+                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                </div>
+                <div class="empty-title">No files dropped yet</div>
+                <div class="empty-desc">Drag any file or directory from Windows File Explorer onto this capsule to inspect its path.</div>
+              </li>
+            </ul>
+          </div>
+        </section>
+
+        <!-- 2. MEDIA TAB -->
+        <section id="view-media" class="tab-panel" role="tabpanel" aria-labelledby="tab-media">
+          <div class="media-hero-card">
+            <div class="vinyl-record-wrap">
+              <div class="vinyl-disc" id="music-disc">
+                <div class="vinyl-groove-1"></div>
+                <div class="vinyl-groove-2"></div>
+                <div class="vinyl-label">
+                  <span class="vinyl-note">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+                  </span>
+                </div>
+              </div>
+            </div>
+            
+            <div class="media-info-block">
+              <div class="media-app-tag" id="media-session-tag">Audio Idle</div>
+              <h2 class="media-track-title" id="media-title">No Active Session</h2>
+              <p class="media-artist-name" id="media-artist">Spotify &bull; YouTube &bull; Windows Media Player &bull; VLC</p>
+              
+              <!-- Equalizer Waveform -->
+              <div class="sound-wave" id="media-soundwave">
+                <span class="wave-bar"></span>
+                <span class="wave-bar"></span>
+                <span class="wave-bar"></span>
+                <span class="wave-bar"></span>
+                <span class="wave-bar"></span>
+                <span class="wave-bar"></span>
+                <span class="wave-bar"></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="media-playback-dock">
+            <button id="btn-media-prev" class="dock-btn" title="Previous Track" aria-label="Previous Track">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="19 20 9 12 19 4 19 20"></polygon><line x1="5" y1="19" x2="5" y2="5"></line></svg>
+            </button>
+            <button id="btn-media-play" class="dock-btn play-hero-btn" title="Play / Pause" aria-label="Play or Pause">
+              <svg id="icon-play-pause" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            </button>
+            <button id="btn-media-next" class="dock-btn" title="Next Track" aria-label="Next Track">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19"></line></svg>
+            </button>
+            <button id="btn-media-mute" class="dock-btn" title="Toggle Volume Mute" aria-label="Toggle Mute">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>
+            </button>
+          </div>
+        </section>
+
+        <!-- 3. REMINDERS TAB -->
+        <section id="view-reminders" class="tab-panel" role="tabpanel" aria-labelledby="tab-reminders">
+          <div class="calendar-header-banner">
+            <div class="date-capsule">
+              <span class="date-dow" id="cal-day-str">Today</span>
+              <span class="date-full" id="cal-date-str">--</span>
+            </div>
+            <button id="btn-add-reminder-toggle" class="pill-btn primary">+ New Task</button>
+          </div>
+
+          <!-- Add reminder form -->
+          <div id="add-reminder-form" class="reminder-input-card hidden">
+            <input type="text" id="input-rem-title" placeholder="Reminder title (e.g. Call client, Review code)" class="glow-input" aria-label="Reminder title">
+            <div class="input-row">
+              <input type="date" id="input-rem-date" class="glow-input" aria-label="Reminder date">
+              <input type="time" id="input-rem-time" class="glow-input" aria-label="Reminder time">
+              <select id="input-rem-cat" class="glow-input" aria-label="Reminder category">
+                <option value="General">General</option>
+                <option value="Work">Work</option>
+                <option value="Health">Health</option>
+                <option value="Personal">Personal</option>
+              </select>
+            </div>
+            <div class="form-btn-row">
+              <button id="btn-save-reminder" class="pill-btn primary">Save Task</button>
+              <button id="btn-cancel-reminder" class="pill-btn">Cancel</button>
+            </div>
+          </div>
+
+          <!-- Reminders Filter -->
+          <div class="filter-strip">
+            <span class="filter-caption">Show:</span>
+            <button class="filter-chip active" data-filter="all">All</button>
+            <button class="filter-chip" data-filter="pending">Pending</button>
+            <button class="filter-chip" data-filter="completed">Done</button>
+          </div>
+
+          <!-- Reminders List -->
+          <div class="reminders-scroll">
+            <ul id="reminders-list" class="reminders-stack" role="list">
+              <li class="empty-drop-state">No reminders created yet.</li>
+            </ul>
+          </div>
+        </section>
+
+        <!-- 4. TOOLS TAB -->
+        <section id="view-tools" class="tab-panel" role="tabpanel" aria-labelledby="tab-tools">
+          <div class="gauges-grid">
+            
+            <!-- CPU Gauge -->
+            <div class="gauge-card">
+              <div class="gauge-top">
+                <span class="gauge-label">CPU Load</span>
+                <span class="gauge-val" id="cpu-val">0%</span>
+              </div>
+              <div class="gauge-track">
+                <div class="gauge-fill cpu-fill" id="cpu-bar" style="width: 0%"></div>
+              </div>
+              <span class="gauge-sub">Win32 Processor Times</span>
+            </div>
+
+            <!-- RAM Gauge -->
+            <div class="gauge-card">
+              <div class="gauge-top">
+                <span class="gauge-label">Memory</span>
+                <span class="gauge-val" id="ram-val">0%</span>
+              </div>
+              <div class="gauge-track">
+                <div class="gauge-fill ram-fill" id="ram-bar" style="width: 0%"></div>
+              </div>
+              <span class="gauge-sub" id="ram-detail">0 / 0 MB</span>
+            </div>
+
+            <!-- Power Gauge -->
+            <div class="gauge-card">
+              <div class="gauge-top">
+                <span class="gauge-label">Battery &amp; Power</span>
+                <span class="gauge-val" id="power-val">AC Connected</span>
+              </div>
+              <div class="gauge-track">
+                <div class="gauge-fill power-fill" id="power-bar" style="width: 100%"></div>
+              </div>
+              <span class="gauge-sub">System Power Status</span>
+            </div>
+
+          </div>
+
+          <div class="quick-shortcuts-box">
+            <h3 class="shortcuts-title">Desktop Shortcuts</h3>
+            <div class="shortcuts-row">
+              <button id="btn-tool-lock" class="shortcut-tile">
+                <span class="tile-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                </span>
+                <span class="tile-name">Lock PC</span>
+              </button>
+              <button id="btn-tool-taskmgr" class="shortcut-tile">
+                <span class="tile-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                </span>
+                <span class="tile-name">Task Manager</span>
+              </button>
+              <button id="btn-tool-mute" class="shortcut-tile">
+                <span class="tile-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>
+                </span>
+                <span class="tile-name">Mute Volume</span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- 5. SETTINGS TAB -->
+        <section id="view-settings" class="tab-panel" role="tabpanel" aria-labelledby="tab-settings">
+          <div class="settings-stack">
+            
+            <!-- Theme & Appearance Customizer -->
+            <div class="setting-group-card">
+              <div class="setting-group-header">
+                <span class="setting-group-title">Theme &amp; Appearance</span>
+                <span class="setting-group-badge" id="current-theme-badge">Dark &bull; Glass</span>
+              </div>
+
+              <!-- 1. Light Mode / Dark Mode -->
+              <div class="theme-mode-row">
+                <button class="theme-pill-btn active" id="btn-theme-dark" data-mode="dark" title="Dark Mode">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+                  <span>Dark Mode</span>
+                </button>
+                <button class="theme-pill-btn" id="btn-theme-light" data-mode="light" title="Light Mode">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+                  <span>Light Mode</span>
+                </button>
+              </div>
+
+              <!-- 2. Background Style -->
+              <div class="bg-selector-row">
+                <span class="sub-setting-label">Backdrop Style:</span>
+                <div class="bg-style-buttons">
+                  <button class="bg-opt-btn active" data-bg="glass" id="bg-opt-glass" title="Frosted Glass (See Wallpaper)">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="12" x2="21" y2="12"></line><line x1="12" y1="3" x2="12" y2="21"></line></svg>
+                    <span>Glass Blur</span>
+                  </button>
+                  <button class="bg-opt-btn" data-bg="lively" id="bg-opt-lively" title="Lively Ambient Animated Motion">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                    <span>Lively Motion</span>
+                  </button>
+                  <button class="bg-opt-btn" data-bg="photo" id="bg-opt-photo" title="Photo Wallpaper Image">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                    <span>Photo Image</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Photo Controls (Shows when Photo is selected) -->
+              <div id="photo-config-panel" class="photo-config-panel hidden">
+                <div class="photo-preset-row">
+                  <button class="photo-thumb active" data-preset="preset1" title="Cosmic Nebula" style="background: linear-gradient(135deg, #1e1b4b, #4338ca, #3b82f6);"></button>
+                  <button class="photo-thumb" data-preset="preset2" title="Sunset Horizon" style="background: linear-gradient(135deg, #450a0a, #991b1b, #f59e0b);"></button>
+                  <button class="photo-thumb" data-preset="preset3" title="Emerald Forest" style="background: linear-gradient(135deg, #022c22, #065f46, #10b981);"></button>
+                  <button class="photo-thumb" data-preset="preset4" title="Deep Obsidian" style="background: linear-gradient(135deg, #090d16, #1e293b, #334155);"></button>
+                  <button class="photo-thumb photo-thumb-anim" data-preset="spiderverse" title="Spider-Verse GIF" style="background: #0d0f17 url('templates/spiderverse.gif') center/contain no-repeat;"></button>
+                  <button class="photo-thumb photo-thumb-anim" data-preset="cat" title="Cute Cat GIF" style="background: #11141e url('templates/cat.gif') center/contain no-repeat;"></button>
+                  <button class="photo-thumb photo-thumb-anim" data-preset="stitch" title="Cute Stitch GIF" style="background: #0e1726 url('templates/stitch.gif') center/contain no-repeat;"></button>
+                  <button class="photo-thumb photo-thumb-anim" data-preset="vegeta" title="Vegeta Ultra Ego GIF" style="background: #14081f url('templates/vegeta.gif') center/contain no-repeat;"></button>
+                  <button class="photo-thumb photo-thumb-anim" data-preset="sakura" title="Sakura Forest (Minecraft)" style="background: #1c0e18 url('templates/sakura.gif') center/contain no-repeat;"></button>
+                </div>
+                <div class="photo-upload-row">
+                  <button type="button" class="upload-photo-btn" id="btn-upload-photo" title="Choose GIF Animation or Image Wallpaper">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                    <span>Upload GIF / Photo...</span>
+                  </button>
+                  <input type="file" id="input-custom-photo" accept=".gif,image/gif,image/png,image/jpeg,image/webp,image/*" class="hidden-file-input">
+                  <button id="btn-clear-photo" class="clear-photo-btn" title="Reset to default">Reset</button>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- 2. COMPACT DYNAMIC ISLAND ANIMATION SELECTOR -->
+            <div class="setting-row anim-setting-row">
+              <div class="setting-info">
+                <span class="setting-title">Dynamic Island Animation</span>
+                <span class="setting-subtitle">Animated character inside the compact capsule (Spider-Verse / Cat / Stitch / Vegeta / Sakura)</span>
+              </div>
+              <div class="companion-selector" id="companion-selector">
+                <button type="button" class="companion-pill-btn active" data-anim="spiderverse" title="Spider-Verse Glitch">
+                  <span>🕷️ Spider-Verse</span>
+                </button>
+                <button type="button" class="companion-pill-btn" data-anim="cat" title="Cute Small Cat">
+                  <span>🐱 Cat</span>
+                </button>
+                <button type="button" class="companion-pill-btn" data-anim="stitch" title="Cute Small Stitch">
+                  <span>💙 Stitch</span>
+                </button>
+                <button type="button" class="companion-pill-btn" data-anim="vegeta" title="Vegeta Ultra Ego Hakai">
+                  <span>🔥 Vegeta</span>
+                </button>
+                <button type="button" class="companion-pill-btn" data-anim="sakura" title="Sakura Forest (Minecraft)">
+                  <span>🌸 Sakura</span>
+                </button>
+                <button type="button" class="companion-pill-btn" data-anim="none" title="Hide Animation">
+                  <span>Off</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="setting-row">
+              <div class="setting-info">
+                <span class="setting-title">Always on Top</span>
+                <span class="setting-subtitle">Keep the capsule floating above other desktop windows</span>
+              </div>
+              <input type="checkbox" id="setting-always-on-top" class="ios-switch">
+            </div>
+
+            <div class="setting-row">
+              <div class="setting-info">
+                <span class="setting-title">Reduced Motion</span>
+                <span class="setting-subtitle">Disable spring animations for performance &amp; accessibility</span>
+              </div>
+              <input type="checkbox" id="setting-reduced-motion" class="ios-switch">
+            </div>
+
+            <div class="setting-row">
+              <div class="setting-info">
+                <span class="setting-title">Launch at Windows Startup</span>
+                <span class="setting-subtitle">Automatically start K2 Dynamic Island when you log in</span>
+              </div>
+              <input type="checkbox" id="setting-startup" class="ios-switch">
+            </div>
+
+            <!-- Software Updates Card -->
+            <div class="setting-group-card update-group-card">
+              <div class="setting-group-header">
+                <span class="setting-group-title">Software Updates</span>
+                <span class="setting-group-badge" id="update-badge-status">Up to date</span>
+              </div>
+
+              <div class="setting-row">
+                <div class="setting-info">
+                  <span class="setting-title">Automatic Update Checks</span>
+                  <span class="setting-subtitle">Check for new releases at startup and periodically</span>
+                </div>
+                <input type="checkbox" id="setting-auto-check-updates" class="ios-switch">
+              </div>
+
+              <div class="setting-row">
+                <div class="setting-info">
+                  <span class="setting-title">Automatic Download</span>
+                  <span class="setting-subtitle">Download verified installer quietly in background</span>
+                </div>
+                <input type="checkbox" id="setting-auto-download-updates" class="ios-switch">
+              </div>
+
+              <div class="update-status-panel" id="update-status-panel">
+                <div class="update-status-header">
+                  <div class="update-status-icon" id="update-status-icon">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                  </div>
+                  <div class="update-status-text">
+                    <div class="update-status-msg" id="update-status-msg">Running latest release (v1.0.0)</div>
+                    <div class="update-status-sub" id="update-status-sub">Official GitHub Releases Channel</div>
+                  </div>
+                </div>
+
+                <!-- Progress bar for downloading -->
+                <div class="update-progress-bar-wrap hidden" id="update-progress-bar-wrap">
+                  <div class="update-progress-bar" id="update-progress-bar" style="width: 0%"></div>
+                </div>
+
+                <!-- Action buttons -->
+                <div class="update-actions-row">
+                  <button type="button" class="pill-btn primary" id="btn-check-updates">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+                    <span>Check for Updates</span>
+                  </button>
+                  <button type="button" class="pill-btn primary hidden" id="btn-download-update">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    <span>Download Now</span>
+                  </button>
+                  <button type="button" class="pill-btn success hidden" id="btn-install-update">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                    <span>Install &amp; Restart</span>
+                  </button>
+                  <button type="button" class="pill-btn hidden" id="btn-view-release-notes">
+                    <span>Release Notes</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="about-card">
+              <div class="about-header">
+                <span class="about-title">K2 Dynamic Island</span>
+                <span class="about-ver">v1.0.0 (x64 Release)</span>
+              </div>
+              <div class="about-line about-developer-line">
+                <span>Developer:</span>
+                <span class="developer-credit">Developed by kimsokun</span>
+              </div>
+            </div>
+
+            <div class="settings-action-row">
+              <button id="btn-quit-app" class="pill-btn danger">Quit Application</button>
+            </div>
+
+          </div>
+        </section>
+
+      </main>
+
+      <!-- Confirmation Modal -->
+      <div id="confirm-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title">
+        <div class="modal-box">
+          <h4 id="confirm-modal-title" class="modal-heading">Confirm Action</h4>
+          <p id="confirm-modal-message" class="modal-desc">Are you sure you want to delete this reminder?</p>
+          <div class="modal-actions">
+            <button id="modal-btn-cancel" class="pill-btn">Cancel</button>
+            <button id="modal-btn-confirm" class="pill-btn danger">Delete</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Release Notes Modal -->
+      <div id="release-notes-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="release-notes-title">
+        <div class="modal-box modal-box-large">
+          <div class="modal-header-row">
+            <h4 id="release-notes-title" class="modal-heading">Release Notes</h4>
+            <span class="modal-ver-badge" id="modal-notes-version">v1.0.1</span>
+          </div>
+          <div class="release-notes-body" id="release-notes-body">
+            <!-- Markdown or text release notes -->
+          </div>
+          <div class="modal-actions">
+            <button id="modal-notes-close" class="pill-btn">Close</button>
+            <button id="modal-notes-install" class="pill-btn success hidden">Install &amp; Restart</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Toast Feedback -->
+      <div id="toast" class="island-toast hidden" role="status" aria-live="polite"></div>
+
+    </div>
+  </div>
+
+  <script src="app.js?v=1.0.3"></script>
+</body>
+</html>

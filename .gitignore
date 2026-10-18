@@ -1,0 +1,44 @@
+# Build outputs and directories
+build/
+bin/
+dist/
+test_build/
+test_install/
+
+# CMake temporary files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+*.ninja
+*.ninja_deps
+*.ninja_log
+
+# Compiled binaries and libraries
+*.exe
+*.dll
+*.lib
+*.a
+*.o
+*.obj
+*.pdb
+*.ilk
+*.exp
+
+# Downloaded tools and packages
+tools/
+packages/
+*.zip
+*.7z
+*.rar
+
+# IDE and editor files
+.vscode/
+.vs/
+*.sln
+*.vcxproj
+*.vcxproj.user
+
+# OS generated files
+Thumbs.db
+Desktop.ini
