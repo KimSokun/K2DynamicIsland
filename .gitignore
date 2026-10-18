@@ -4,6 +4,7 @@ bin/
 dist/
 test_build/
 test_install/
+build.bat
 
 # CMake temporary files
 CMakeFiles/
