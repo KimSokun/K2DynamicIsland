@@ -360,7 +360,7 @@ MediaStatus MediaController::GetStatus() {
                                             CloseHandle(hProcess);
                                         }
 
-                                        // Enumerate windows for this PID to extract song/video title
+                                        // Enumerate windows for this PID
                                         WindowContext winCtx;
                                         winCtx.pid = pid;
                                         EnumWindows(EnumMediaWindowsProc, reinterpret_cast<LPARAM>(&winCtx));
@@ -369,11 +369,20 @@ MediaStatus MediaController::GetStatus() {
                                     pSessionControl2->Release();
                                 }
 
-                                status.hasActiveSession = true;
-                                ExtractTrackMetadata(rawExeName, wndTitle, status);
+                                std::string exeLower = rawExeName;
+                                std::transform(exeLower.begin(), exeLower.end(), exeLower.begin(), ::tolower);
+                                bool isBrowser = (exeLower.find("chrome") != std::string::npos || 
+                                                  exeLower.find("msedge") != std::string::npos ||
+                                                  exeLower.find("firefox") != std::string::npos || 
+                                                  exeLower.find("brave") != std::string::npos);
 
-                                pSessionControl->Release();
-                                break; // Found active session
+                                // Only accept session if it is NOT a generic silent browser session
+                                if (!isBrowser || !wndTitle.empty()) {
+                                    status.hasActiveSession = true;
+                                    ExtractTrackMetadata(rawExeName, wndTitle, status);
+                                    pSessionControl->Release();
+                                    break;
+                                }
                             }
                             pSessionControl->Release();
                         }
@@ -391,29 +400,29 @@ MediaStatus MediaController::GetStatus() {
         CoUninitialize();
     }
 
-    // Fallback: If no WASAPI session reported, hunt for active Spotify/YouTube windows
-    if (!status.hasActiveSession) {
-        MediaWindowHunt hunt;
-        EnumWindows(HuntMediaWindowsProc, reinterpret_cast<LPARAM>(&hunt));
-        if (hunt.found) {
-            status.hasActiveSession = true;
-            status.appName = hunt.appName;
-            status.title = hunt.title;
-            status.artist = hunt.artist;
-        }
+    // Always hunt for active YouTube or Spotify windows to ensure precise track title & platform
+    MediaWindowHunt hunt;
+    EnumWindows(HuntMediaWindowsProc, reinterpret_cast<LPARAM>(&hunt));
+    if (hunt.found) {
+        status.hasActiveSession = true;
+        status.appName = hunt.appName;
+        status.title = hunt.title;
+        status.artist = hunt.artist;
     }
 
     // Determine actual playback status from real-time audio output
     ULONGLONG now = GetTickCount64();
-    if (status.peakLevel > 0.001f) {
+    if (status.peakLevel > 0.008f) {
         m_lastAudioPeakTick = now;
         status.isPlaying = true;
-        status.hasActiveSession = true;
-        if (status.appName.empty()) status.appName = "Audio";
-        if (status.title.empty()) status.title = "System Audio";
+        if (!status.hasActiveSession) {
+            status.hasActiveSession = true;
+            status.appName = "Audio";
+            status.title = "System Audio";
+        }
     } else {
-        // If sound was playing within the last 1200ms, keep isPlaying true to bridge micro-pauses between beats
-        if (m_lastAudioPeakTick != 0 && (now - m_lastAudioPeakTick) < 1200) {
+        // Bridge micro-pauses between musical notes for 800ms
+        if (m_lastAudioPeakTick != 0 && (now - m_lastAudioPeakTick) < 800) {
             status.isPlaying = true;
         } else {
             status.isPlaying = false;
@@ -425,7 +434,7 @@ MediaStatus MediaController::GetStatus() {
     } else if (status.hasActiveSession) {
         status.statusText = (status.appName.empty() ? "Audio" : status.appName) + " (Paused)";
     } else {
-        status.statusText = "No active audio session playing";
+        status.statusText = "Idle";
     }
 
     return status;

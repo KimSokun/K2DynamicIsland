@@ -1010,6 +1010,7 @@
       if (elements.compactBrand) elements.compactBrand.textContent = 'Files';
       if (elements.compactSeparator) elements.compactSeparator.style.display = 'inline';
       if (elements.compactSubtext) {
+        elements.compactSubtext.style.display = 'inline-block';
         elements.compactSubtext.classList.remove('marquee');
         elements.compactSubtext.textContent = `${fileCount} file${fileCount === 1 ? '' : 's'} ready`;
         elements.compactSubtext.removeAttribute('title');
@@ -1020,39 +1021,35 @@
     // 2. If actively playing music: Show Platform + Separator + Scrolling Track Title
     if (isPlaying && m) {
       if (elements.compactCenterContent) elements.compactCenterContent.classList.add('audio-active');
-      if (elements.compactBrand) elements.compactBrand.textContent = m.appName || 'Audio';
+      if (elements.compactBrand) elements.compactBrand.textContent = m.appName || 'YouTube';
       if (elements.compactSeparator) elements.compactSeparator.style.display = 'inline';
       if (elements.compactSubtext) {
+        elements.compactSubtext.style.display = 'inline-flex';
         const titleText = m.title || 'Playing Audio';
         const fullTrack = m.artist ? `${m.artist} - ${titleText}` : titleText;
         
         elements.compactSubtext.title = fullTrack;
-        // If track title is longer than 15 chars, activate smooth marquee scrolling
-        if (fullTrack.length > 15) {
-          elements.compactSubtext.classList.add('marquee');
-          elements.compactSubtext.innerHTML = `
-            <span class="compact-marquee-content">
-              <span>${escapeHtml(fullTrack)}</span>
-              <span class="marquee-spacer">&bull;</span>
-              <span>${escapeHtml(fullTrack)}</span>
-              <span class="marquee-spacer">&bull;</span>
-            </span>
-          `;
-        } else {
-          elements.compactSubtext.classList.remove('marquee');
-          elements.compactSubtext.textContent = fullTrack;
-        }
+        elements.compactSubtext.classList.add('marquee');
+        elements.compactSubtext.innerHTML = `
+          <span class="compact-marquee-content">
+            <span>${escapeHtml(fullTrack)}</span>
+            <span class="marquee-spacer">&bull;</span>
+            <span>${escapeHtml(fullTrack)}</span>
+            <span class="marquee-spacer">&bull;</span>
+          </span>
+        `;
       }
       return;
     }
 
     // 3. If music is stopped/paused but media app (e.g. YouTube/Spotify) is open:
-    // Show ONLY platform, no title, and audio activity inactive
-    if (hasSession && m) {
+    // Show ONLY platform, NO title, and audio activity not working
+    if (hasSession && m && m.appName) {
       if (elements.compactCenterContent) elements.compactCenterContent.classList.remove('audio-active');
-      if (elements.compactBrand) elements.compactBrand.textContent = m.appName || 'Media';
+      if (elements.compactBrand) elements.compactBrand.textContent = m.appName;
       if (elements.compactSeparator) elements.compactSeparator.style.display = 'none';
       if (elements.compactSubtext) {
+        elements.compactSubtext.style.display = 'none';
         elements.compactSubtext.classList.remove('marquee');
         elements.compactSubtext.textContent = '';
         elements.compactSubtext.removeAttribute('title');
@@ -1060,13 +1057,15 @@
       return;
     }
 
-    // 4. Default Idle state (no media app open, not playing):
+    // 4. If not open YouTube / no media active (Default idle state):
+    // Show ONLY platform (K2 Island), NO title, and audio activity not working
     if (elements.compactCenterContent) elements.compactCenterContent.classList.remove('audio-active');
     if (elements.compactBrand) elements.compactBrand.textContent = 'K2 Island';
-    if (elements.compactSeparator) elements.compactSeparator.style.display = 'inline';
+    if (elements.compactSeparator) elements.compactSeparator.style.display = 'none';
     if (elements.compactSubtext) {
+      elements.compactSubtext.style.display = 'none';
       elements.compactSubtext.classList.remove('marquee');
-      elements.compactSubtext.textContent = 'Drop files here';
+      elements.compactSubtext.textContent = '';
       elements.compactSubtext.removeAttribute('title');
     }
   }
