@@ -103,7 +103,8 @@ bool UpdateManager::ValidateHttpsUrl(const std::string& url) {
     if (host == "github.com" || 
         host == "api.github.com" || 
         host == "objects.githubusercontent.com" ||
-        (host.size() > 24 && host.substr(host.size() - 24) == ".objects.githubusercontent.com")) {
+        (host.size() > 24 && host.substr(host.size() - 24) == ".objects.githubusercontent.com") ||
+        (host.size() > 10 && host.substr(host.size() - 10) == ".github.io")) {
         return true;
     }
     return false;
@@ -323,54 +324,72 @@ void UpdateManager::WorkerCheckForUpdates(bool manual) {
     WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
         WINHTTP_HEADER_NAME_BY_INDEX, &statusCode, &statusCodeSize, WINHTTP_NO_HEADER_INDEX);
 
-    if (statusCode == 404) {
-        // No release published yet
-        WinHttpCloseHandle(hRequest);
-        WinHttpCloseHandle(hConnect);
-        WinHttpCloseHandle(hSession);
-        m_lastCheckTick = now;
-        {
-            std::lock_guard<std::mutex> lock(m_mutex);
-            m_state = UpdateState::NoUpdate;
-            m_progress.message = "You are running the latest version (v" + m_appVersion + ").";
-        }
-        if (m_eventCallback) m_eventCallback("updateStatusChanged", GetStatusJson());
-        return;
-    }
-
-    if (statusCode != 200) {
-        WinHttpCloseHandle(hRequest);
-        WinHttpCloseHandle(hConnect);
-        WinHttpCloseHandle(hSession);
-        std::lock_guard<std::mutex> lock(m_mutex);
-        m_state = UpdateState::Error;
-        m_progress.error = "GitHub Releases API returned HTTP status " + std::to_string(statusCode);
-        if (m_eventCallback) m_eventCallback("updateStatusChanged", GetStatusJson());
-        return;
-    }
-
-    // Read JSON response body
     std::string jsonBody;
-    DWORD bytesAvailable = 0;
-    while (WinHttpQueryDataAvailable(hRequest, &bytesAvailable) && bytesAvailable > 0) {
-        std::vector<char> buf(bytesAvailable + 1, 0);
-        DWORD bytesRead = 0;
-        if (WinHttpReadData(hRequest, buf.data(), bytesAvailable, &bytesRead) && bytesRead > 0) {
-            jsonBody.append(buf.data(), bytesRead);
+
+    if (statusCode == 200) {
+        DWORD bytesAvailable = 0;
+        while (WinHttpQueryDataAvailable(hRequest, &bytesAvailable) && bytesAvailable > 0) {
+            std::vector<char> buf(bytesAvailable + 1, 0);
+            DWORD bytesRead = 0;
+            if (WinHttpReadData(hRequest, buf.data(), bytesAvailable, &bytesRead) && bytesRead > 0) {
+                jsonBody.append(buf.data(), bytesRead);
+            }
         }
     }
 
     WinHttpCloseHandle(hRequest);
     WinHttpCloseHandle(hConnect);
-    WinHttpCloseHandle(hSession);
 
+    // Fallback to checking public update metadata on user's GitHub Pages site (kimsokun.github.io)
+    if (jsonBody.empty() || statusCode == 404) {
+        std::wstring pagesHost = L"kimsokun.github.io";
+        HINTERNET hPagesConnect = WinHttpConnect(hSession, pagesHost.c_str(), INTERNET_DEFAULT_HTTPS_PORT, 0);
+        if (hPagesConnect) {
+            HINTERNET hPagesReq = WinHttpOpenRequest(hPagesConnect, L"GET", L"/version.json",
+                NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE);
+            if (hPagesReq && WinHttpSendRequest(hPagesReq, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0) &&
+                WinHttpReceiveResponse(hPagesReq, NULL)) {
+                DWORD pCode = 0;
+                DWORD pSize = sizeof(pCode);
+                WinHttpQueryHeaders(hPagesReq, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+                    WINHTTP_HEADER_NAME_BY_INDEX, &pCode, &pSize, WINHTTP_NO_HEADER_INDEX);
+                if (pCode == 200) {
+                    DWORD avail = 0;
+                    while (WinHttpQueryDataAvailable(hPagesReq, &avail) && avail > 0) {
+                        std::vector<char> buf(avail + 1, 0);
+                        DWORD read = 0;
+                        if (WinHttpReadData(hPagesReq, buf.data(), avail, &read) && read > 0) {
+                            jsonBody.append(buf.data(), read);
+                        }
+                    }
+                    if (!jsonBody.empty()) {
+                        statusCode = 200;
+                    }
+                }
+                WinHttpCloseHandle(hPagesReq);
+            }
+            WinHttpCloseHandle(hPagesConnect);
+        }
+    }
+
+    WinHttpCloseHandle(hSession);
     m_lastCheckTick = now;
+
+    if (jsonBody.empty()) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_state = UpdateState::NoUpdate;
+        m_progress.message = "You are running the latest version (v" + m_appVersion + ").";
+        if (m_eventCallback) m_eventCallback("updateStatusChanged", GetStatusJson());
+        return;
+    }
 
     try {
         nlohmann::json rel = nlohmann::json::parse(jsonBody);
         std::string tag = rel.value("tag_name", "");
+        if (tag.empty()) tag = rel.value("version", "");
         std::string cleanTag = CleanVersionTag(tag);
         std::string body = rel.value("body", "");
+        if (body.empty()) body = rel.value("release_notes", "");
         std::string publishedAt = rel.value("published_at", "");
 
         std::string downloadUrl = "";
@@ -387,6 +406,13 @@ void UpdateManager::WorkerCheckForUpdates(bool manual) {
                     break;
                 }
             }
+        }
+
+        // Direct public download link fallback
+        if (downloadUrl.empty() && rel.contains("download_url") && rel["download_url"].is_string()) {
+            downloadUrl = rel["download_url"].get<std::string>();
+            assetName = "K2DynamicIsland-Setup.exe";
+            assetSize = rel.value("installer_size", 0ULL);
         }
 
         bool newer = IsVersionNewer(cleanTag, m_appVersion);
