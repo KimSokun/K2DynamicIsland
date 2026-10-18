@@ -990,9 +990,10 @@
   function updateCompactDisplay() {
     const fileCount = (state.files && Array.isArray(state.files)) ? state.files.length : 0;
     const m = state.mediaStatus;
-    const isPlaying = !!(m && (m.hasActiveSession || m.isPlaying));
+    const isPlaying = !!(m && m.isPlaying);
+    const hasSession = !!(m && m.hasActiveSession);
 
-    // Always keep equalizer updated regardless of files
+    // Keep mini-equalizer strictly bound to actual sound playback
     if (elements.compactEqualizer) {
       elements.compactEqualizer.classList.toggle('active', isPlaying);
       if (isPlaying && m) {
@@ -1003,32 +1004,70 @@
       }
     }
 
+    // 1. If files dropped, files display takes priority
     if (fileCount > 0) {
       if (elements.compactCenterContent) elements.compactCenterContent.classList.remove('audio-active');
       if (elements.compactBrand) elements.compactBrand.textContent = 'Files';
+      if (elements.compactSeparator) elements.compactSeparator.style.display = 'inline';
       if (elements.compactSubtext) {
+        elements.compactSubtext.classList.remove('marquee');
         elements.compactSubtext.textContent = `${fileCount} file${fileCount === 1 ? '' : 's'} ready`;
         elements.compactSubtext.removeAttribute('title');
       }
       return;
     }
 
-    if (isPlaying) {
+    // 2. If actively playing music: Show Platform + Separator + Scrolling Track Title
+    if (isPlaying && m) {
       if (elements.compactCenterContent) elements.compactCenterContent.classList.add('audio-active');
       if (elements.compactBrand) elements.compactBrand.textContent = m.appName || 'Audio';
+      if (elements.compactSeparator) elements.compactSeparator.style.display = 'inline';
       if (elements.compactSubtext) {
         const titleText = m.title || 'Playing Audio';
-        const artistText = m.artist ? `${m.artist} • ` : '';
-        elements.compactSubtext.textContent = artistText + titleText;
-        elements.compactSubtext.title = (m.artist ? `${m.artist} - ` : '') + titleText;
+        const fullTrack = m.artist ? `${m.artist} - ${titleText}` : titleText;
+        
+        elements.compactSubtext.title = fullTrack;
+        // If track title is longer than 15 chars, activate smooth marquee scrolling
+        if (fullTrack.length > 15) {
+          elements.compactSubtext.classList.add('marquee');
+          elements.compactSubtext.innerHTML = `
+            <span class="compact-marquee-content">
+              <span>${escapeHtml(fullTrack)}</span>
+              <span class="marquee-spacer">&bull;</span>
+              <span>${escapeHtml(fullTrack)}</span>
+              <span class="marquee-spacer">&bull;</span>
+            </span>
+          `;
+        } else {
+          elements.compactSubtext.classList.remove('marquee');
+          elements.compactSubtext.textContent = fullTrack;
+        }
       }
-    } else {
+      return;
+    }
+
+    // 3. If music is stopped/paused but media app (e.g. YouTube/Spotify) is open:
+    // Show ONLY platform, no title, and audio activity inactive
+    if (hasSession && m) {
       if (elements.compactCenterContent) elements.compactCenterContent.classList.remove('audio-active');
-      if (elements.compactBrand) elements.compactBrand.textContent = 'K2 Island';
+      if (elements.compactBrand) elements.compactBrand.textContent = m.appName || 'Media';
+      if (elements.compactSeparator) elements.compactSeparator.style.display = 'none';
       if (elements.compactSubtext) {
-        elements.compactSubtext.textContent = 'Drop files here';
+        elements.compactSubtext.classList.remove('marquee');
+        elements.compactSubtext.textContent = '';
         elements.compactSubtext.removeAttribute('title');
       }
+      return;
+    }
+
+    // 4. Default Idle state (no media app open, not playing):
+    if (elements.compactCenterContent) elements.compactCenterContent.classList.remove('audio-active');
+    if (elements.compactBrand) elements.compactBrand.textContent = 'K2 Island';
+    if (elements.compactSeparator) elements.compactSeparator.style.display = 'inline';
+    if (elements.compactSubtext) {
+      elements.compactSubtext.classList.remove('marquee');
+      elements.compactSubtext.textContent = 'Drop files here';
+      elements.compactSubtext.removeAttribute('title');
     }
   }
 
@@ -1066,7 +1105,7 @@
       if (res && res.success && res.media) {
         const m = res.media;
         state.mediaStatus = m;
-        const isPlaying = !!(m.hasActiveSession || m.isPlaying);
+        const isPlaying = !!(m.isPlaying);
 
         if (m.hasActiveSession) {
           if (elements.mediaTitle) elements.mediaTitle.textContent = m.title || 'Audio Session Active';

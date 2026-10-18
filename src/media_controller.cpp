@@ -370,9 +370,7 @@ MediaStatus MediaController::GetStatus() {
                                 }
 
                                 status.hasActiveSession = true;
-                                status.isPlaying = true;
                                 ExtractTrackMetadata(rawExeName, wndTitle, status);
-                                status.statusText = "Playing in " + (status.appName.empty() ? "System Audio" : status.appName);
 
                                 pSessionControl->Release();
                                 break; // Found active session
@@ -399,24 +397,34 @@ MediaStatus MediaController::GetStatus() {
         EnumWindows(HuntMediaWindowsProc, reinterpret_cast<LPARAM>(&hunt));
         if (hunt.found) {
             status.hasActiveSession = true;
-            status.isPlaying = true;
             status.appName = hunt.appName;
             status.title = hunt.title;
             status.artist = hunt.artist;
-            status.statusText = "Playing in " + hunt.appName;
         }
     }
 
-    // If master peak audio is detected
+    // Determine actual playback status from real-time audio output
+    ULONGLONG now = GetTickCount64();
     if (status.peakLevel > 0.001f) {
-        status.hasActiveSession = true;
+        m_lastAudioPeakTick = now;
         status.isPlaying = true;
-        if (status.title.empty()) status.title = "System Audio";
+        status.hasActiveSession = true;
         if (status.appName.empty()) status.appName = "Audio";
-        status.statusText = "Playing Audio";
+        if (status.title.empty()) status.title = "System Audio";
+    } else {
+        // If sound was playing within the last 1200ms, keep isPlaying true to bridge micro-pauses between beats
+        if (m_lastAudioPeakTick != 0 && (now - m_lastAudioPeakTick) < 1200) {
+            status.isPlaying = true;
+        } else {
+            status.isPlaying = false;
+        }
     }
 
-    if (!status.hasActiveSession) {
+    if (status.isPlaying) {
+        status.statusText = "Playing in " + (status.appName.empty() ? "System Audio" : status.appName);
+    } else if (status.hasActiveSession) {
+        status.statusText = (status.appName.empty() ? "Audio" : status.appName) + " (Paused)";
+    } else {
         status.statusText = "No active audio session playing";
     }
 

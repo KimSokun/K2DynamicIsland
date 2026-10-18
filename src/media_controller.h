@@ -29,6 +29,7 @@ public:
 private:
     MediaController();
     void SendMediaKey(BYTE vkCode);
+    ULONGLONG m_lastAudioPeakTick = 0;
 };
 
 } // namespace K2

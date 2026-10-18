@@ -256,11 +256,54 @@ html, body {
   overflow: hidden;
   text-overflow: ellipsis;
   transition: color 0.2s ease;
+  min-width: 0;
+}
+
+.compact-status.marquee {
+  display: inline-flex;
+  overflow: hidden;
+  max-width: 175px;
+  mask-image: linear-gradient(90deg, transparent 0%, #000 6%, #000 94%, transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 6%, #000 94%, transparent 100%);
+}
+
+.compact-marquee-content {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  will-change: transform;
+  animation: compact-marquee-scroll 12s linear infinite;
+}
+
+.compact-marquee-content:hover {
+  animation-play-state: paused;
+}
+
+.marquee-spacer {
+  display: inline-block;
+  margin: 0 14px;
+  opacity: 0.4;
+}
+
+@keyframes compact-marquee-scroll {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
 }
 
 .compact-center.audio-active .compact-status {
   color: #f1f5f9;
   font-weight: 500;
+}
+
+.mini-equalizer:not(.active) .bar {
+  animation: none !important;
+  height: 3px !important;
+  opacity: 0.25 !important;
+  box-shadow: none !important;
 }
 
 /* Right Indicators */
