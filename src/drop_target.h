@@ -74,12 +74,11 @@ public:
         FORMATETC fmt = { CF_HDROP, NULL, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
         STGMEDIUM medium = {};
         if (SUCCEEDED(pDataObj->GetData(&fmt, &medium))) {
-            HDROP hDrop = static_cast<HDROP>(GlobalLock(medium.hGlobal));
+            HDROP hDrop = reinterpret_cast<HDROP>(medium.hGlobal);
             if (hDrop) {
                 if (m_onDrop) {
                     m_onDrop(hDrop);
                 }
-                GlobalUnlock(medium.hGlobal);
             }
             ReleaseStgMedium(&medium);
         }

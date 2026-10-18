@@ -322,8 +322,8 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         TextOutW(hdc, 24, 14, L"K2 Dynamic Island", 17);
 
         SetTextColor(hdc, RGB(148, 163, 184));
-        SelectObject(hdc, g_hFontNormal);
-        TextOutW(hdc, 24, 40, L"Native Desktop Capsule Utility &bull; Setup Wizard", 49);
+        const wchar_t bannerSub[] = L"Native Desktop Capsule Utility \u2022 Setup Wizard";
+        TextOutW(hdc, 24, 40, bannerSub, (int)wcslen(bannerSub));
 
         // Top banner divider line
         HPEN hPen = CreatePen(PS_SOLID, 1, RGB(45, 55, 72));

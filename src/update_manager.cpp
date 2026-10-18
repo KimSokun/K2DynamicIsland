@@ -347,23 +347,25 @@ void UpdateManager::WorkerCheckForUpdates(bool manual) {
         if (hPagesConnect) {
             HINTERNET hPagesReq = WinHttpOpenRequest(hPagesConnect, L"GET", L"/version.json",
                 NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE);
-            if (hPagesReq && WinHttpSendRequest(hPagesReq, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0) &&
-                WinHttpReceiveResponse(hPagesReq, NULL)) {
-                DWORD pCode = 0;
-                DWORD pSize = sizeof(pCode);
-                WinHttpQueryHeaders(hPagesReq, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
-                    WINHTTP_HEADER_NAME_BY_INDEX, &pCode, &pSize, WINHTTP_NO_HEADER_INDEX);
-                if (pCode == 200) {
-                    DWORD avail = 0;
-                    while (WinHttpQueryDataAvailable(hPagesReq, &avail) && avail > 0) {
-                        std::vector<char> buf(avail + 1, 0);
-                        DWORD read = 0;
-                        if (WinHttpReadData(hPagesReq, buf.data(), avail, &read) && read > 0) {
-                            jsonBody.append(buf.data(), read);
+            if (hPagesReq) {
+                if (WinHttpSendRequest(hPagesReq, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0) &&
+                    WinHttpReceiveResponse(hPagesReq, NULL)) {
+                    DWORD pCode = 0;
+                    DWORD pSize = sizeof(pCode);
+                    WinHttpQueryHeaders(hPagesReq, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+                        WINHTTP_HEADER_NAME_BY_INDEX, &pCode, &pSize, WINHTTP_NO_HEADER_INDEX);
+                    if (pCode == 200) {
+                        DWORD avail = 0;
+                        while (WinHttpQueryDataAvailable(hPagesReq, &avail) && avail > 0) {
+                            std::vector<char> buf(avail + 1, 0);
+                            DWORD read = 0;
+                            if (WinHttpReadData(hPagesReq, buf.data(), avail, &read) && read > 0) {
+                                jsonBody.append(buf.data(), read);
+                            }
                         }
-                    }
-                    if (!jsonBody.empty()) {
-                        statusCode = 200;
+                        if (!jsonBody.empty()) {
+                            statusCode = 200;
+                        }
                     }
                 }
                 WinHttpCloseHandle(hPagesReq);

@@ -290,6 +290,19 @@ LRESULT AppWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
             CloseApp();
             break;
         }
+    case WM_EXITSIZEMOVE: {
+        RECT rc;
+        if (GetWindowRect(m_hWnd, &rc)) {
+            AppSettings s = StorageManager::Instance().LoadSettings();
+            s.positionX = rc.left;
+            s.positionY = rc.top;
+            StorageManager::Instance().SaveSettings(s);
+        }
+        return 0;
+    }
+
+    case WM_CLOSE:
+        CloseApp();
         return 0;
 
     case WM_DESTROY:
@@ -424,7 +437,10 @@ void AppWindow::RecenterWindow() {
 
 void AppWindow::SetAlwaysOnTop(bool alwaysOnTop) {
     m_alwaysOnTop = alwaysOnTop;
-    RecenterWindow();
+    if (m_hWnd) {
+        SetWindowPos(m_hWnd, m_alwaysOnTop ? HWND_TOPMOST : HWND_NOTOPMOST,
+            0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    }
 }
 
 void AppWindow::HideWindow() {

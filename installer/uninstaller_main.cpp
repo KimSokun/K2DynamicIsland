@@ -47,6 +47,11 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     // Remove Registry Keys
     RegDeleteKeyW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\K2DynamicIsland");
     RegDeleteKeyW(HKEY_CURRENT_USER, L"Software\\K2DynamicIsland");
+    HKEY hRunKey;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_SET_VALUE, &hRunKey) == ERROR_SUCCESS) {
+        RegDeleteValueW(hRunKey, L"K2 Dynamic Island");
+        RegCloseKey(hRunKey);
+    }
 
     // Delete app files
     std::wstring appExe = installDir + L"\\K2DynamicIsland.exe";

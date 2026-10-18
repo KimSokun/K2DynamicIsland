@@ -5,7 +5,7 @@ import urllib.request
 import urllib.error
 import subprocess
 
-TOKEN = os.environ.get("GITHUB_TOKEN", "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")
+TOKEN = os.environ.get("GITHUB_TOKEN", "")
 OWNER = "KimSokun"
 REPO = "K2DynamicIsland"
 TAG = "v1.0.0"

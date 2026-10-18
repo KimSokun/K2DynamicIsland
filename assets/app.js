@@ -438,7 +438,9 @@
     preset4: 'linear-gradient(135deg, #090d16 0%, #1e293b 50%, #334155 100%)',
     spiderverse: 'templates/spiderverse.gif',
     cat: 'templates/cat.gif',
-    stitch: 'templates/stitch.gif'
+    stitch: 'templates/stitch.gif',
+    vegeta: 'templates/vegeta.gif',
+    sakura: 'templates/sakura.gif'
   };
 
   function applyTheme(themeMode, backgroundType, customBackground) {
@@ -1252,7 +1254,7 @@
         e.stopPropagation();
         const currentlyPlaying = elements.musicDisc && elements.musicDisc.classList.contains('playing');
         const nextState = !currentlyPlaying;
-        setMediaPlaying(nextState);
+        setMediaPlaying(nextState, state.mediaStatus);
 
         elements.btnMediaPlay.style.transform = 'scale(0.88)';
         setTimeout(() => { if (elements.btnMediaPlay) elements.btnMediaPlay.style.transform = ''; }, 140);
