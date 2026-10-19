@@ -30,6 +30,30 @@ static std::string Utf16ToUtf8(const std::wstring& utf16) {
     return std::string(buf.data());
 }
 
+static UINT GetWindowDpi(HWND hWnd) {
+    HMODULE hUser32 = GetModuleHandleW(L"user32.dll");
+    if (hUser32) {
+        typedef UINT (WINAPI *GetDpiForWindowFn)(HWND);
+        auto pfnGetDpi = (GetDpiForWindowFn)GetProcAddress(hUser32, "GetDpiForWindow");
+        if (pfnGetDpi && hWnd) {
+            UINT dpi = pfnGetDpi(hWnd);
+            if (dpi > 0) return dpi;
+        }
+    }
+    HDC hdc = GetDC(NULL);
+    UINT dpi = 96;
+    if (hdc) {
+        dpi = GetDeviceCaps(hdc, LOGPIXELSY);
+        ReleaseDC(NULL, hdc);
+    }
+    return dpi > 0 ? dpi : 96;
+}
+
+static int ScaleForDpi(int value, UINT dpi) {
+    if (dpi == 0) dpi = 96;
+    return MulDiv(value, (int)dpi, 96);
+}
+
 AppWindow::AppWindow() {
     m_dispatcher = std::make_unique<BridgeDispatcher>(this);
 }
@@ -83,22 +107,37 @@ bool AppWindow::Create() {
     GetCursorPos(&pt);
     HMONITOR hMon = MonitorFromPoint(pt, MONITOR_DEFAULTTOPRIMARY);
     MONITORINFO mi = { sizeof(mi) };
+
+    UINT dpiX = 96, dpiY = 96;
+    HMODULE hShcore = LoadLibraryW(L"shcore.dll");
+    if (hShcore) {
+        typedef HRESULT (WINAPI *GetDpiForMonitorFn)(HMONITOR, int, UINT*, UINT*);
+        auto pfnGetDpiForMonitor = (GetDpiForMonitorFn)GetProcAddress(hShcore, "GetDpiForMonitor");
+        if (pfnGetDpiForMonitor) {
+            pfnGetDpiForMonitor(hMon, 0 /*MDT_EFFECTIVE_DPI*/, &dpiX, &dpiY);
+        }
+        FreeLibrary(hShcore);
+    }
+    UINT initialDpi = (dpiY > 0) ? dpiY : 96;
+
+    int physWidth = ScaleForDpi(m_currentWidth, initialDpi);
+    int physHeight = ScaleForDpi(m_currentHeight, initialDpi);
     int posX = 0;
-    int posY = 12;
+    int posY = ScaleForDpi(12, initialDpi);
 
     if (GetMonitorInfoW(hMon, &mi)) {
         int workWidth = mi.rcWork.right - mi.rcWork.left;
-        posX = mi.rcWork.left + (workWidth - m_currentWidth) / 2;
-        posY = mi.rcWork.top + 12;
+        posX = mi.rcWork.left + (workWidth - physWidth) / 2;
+        posY = mi.rcWork.top + ScaleForDpi(12, initialDpi);
     } else {
         int screenW = GetSystemMetrics(SM_CXSCREEN);
-        posX = (screenW - m_currentWidth) / 2;
-        posY = 12;
+        posX = (screenW - physWidth) / 2;
+        posY = ScaleForDpi(12, initialDpi);
     }
 
     bool forceRecenter = (wcsstr(GetCommandLineW(), L"--recenter") != nullptr);
     if (!forceRecenter && settings.positionX >= 0 && settings.positionY >= 0) {
-        POINT ptCheck = { settings.positionX + m_currentWidth / 2, settings.positionY + 10 };
+        POINT ptCheck = { settings.positionX + physWidth / 2, settings.positionY + 10 };
         if (MonitorFromPoint(ptCheck, MONITOR_DEFAULTTONULL) != NULL) {
             posX = settings.positionX;
             posY = settings.positionY;
@@ -116,14 +155,16 @@ bool AppWindow::Create() {
         exStyle |= WS_EX_TOPMOST;
     }
 
-    K2::Log("AppWindow::Create calling CreateWindowExW");
+    m_currentWidth = physWidth;
+    m_currentHeight = physHeight;
+
     m_hWnd = CreateWindowExW(
         exStyle,
         CLASS_NAME,
         L"K2 Dynamic Island",
         WS_POPUP | WS_VISIBLE,
         posX, posY,
-        m_currentWidth, m_currentHeight,
+        physWidth, physHeight,
         NULL, NULL,
         GetModuleHandleW(NULL),
         this
@@ -295,6 +336,21 @@ LRESULT AppWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
         HookChildDropTargets();
         return 0;
 
+    case WM_DPICHANGED: {
+        auto* lprc = (RECT*)lParam;
+        if (lprc) {
+            SetWindowPos(m_hWnd, NULL,
+                lprc->left, lprc->top,
+                lprc->right - lprc->left,
+                lprc->bottom - lprc->top,
+                SWP_NOZORDER | SWP_NOACTIVATE);
+            if (m_webViewManager) {
+                m_webViewManager->Resize(lprc->right - lprc->left, lprc->bottom - lprc->top);
+            }
+        }
+        return 0;
+    }
+
     case WM_TRAYICON:
         if (lParam == WM_RBUTTONUP || lParam == WM_LBUTTONUP || lParam == WM_CONTEXTMENU) {
             ShowTrayMenu();
@@ -383,12 +439,16 @@ void AppWindow::HandleDropFiles(HDROP hDrop) {
 }
 
 void AppWindow::SetWindowSize(int width, int height) {
+    UINT dpi = GetWindowDpi(m_hWnd);
+    int physWidth = ScaleForDpi(width, dpi);
+    int physHeight = ScaleForDpi(height, dpi);
+
     RECT rect;
     GetWindowRect(m_hWnd, &rect);
 
     // Expand symmetrically around center
     int currentCenterX = rect.left + (rect.right - rect.left) / 2;
-    int newX = currentCenterX - (width / 2);
+    int newX = currentCenterX - (physWidth / 2);
     int newY = rect.top;
 
     // Ensure within monitor work area boundaries
@@ -396,19 +456,19 @@ void AppWindow::SetWindowSize(int width, int height) {
     MONITORINFO mi = { sizeof(mi) };
     if (GetMonitorInfoW(hMon, &mi)) {
         if (newX < mi.rcWork.left + 8) newX = mi.rcWork.left + 8;
-        if (newX + width > mi.rcWork.right - 8) newX = mi.rcWork.right - width - 8;
+        if (newX + physWidth > mi.rcWork.right - 8) newX = mi.rcWork.right - physWidth - 8;
     } else {
         int screenW = GetSystemMetrics(SM_CXSCREEN);
         if (newX < 10) newX = 10;
-        if (newX + width > screenW - 10) newX = screenW - width - 10;
+        if (newX + physWidth > screenW - 10) newX = screenW - physWidth - 10;
     }
 
-    m_currentWidth = width;
-    m_currentHeight = height;
+    m_currentWidth = physWidth;
+    m_currentHeight = physHeight;
 
-    SetWindowPos(m_hWnd, NULL, newX, newY, width, height, SWP_NOZORDER | SWP_NOACTIVATE);
+    SetWindowPos(m_hWnd, NULL, newX, newY, physWidth, physHeight, SWP_NOZORDER | SWP_NOACTIVATE);
     if (m_webViewManager) {
-        m_webViewManager->Resize(width, height);
+        m_webViewManager->Resize(physWidth, physHeight);
     }
     HookChildDropTargets();
 }

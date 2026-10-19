@@ -664,6 +664,18 @@
     }
   }
 
+  // --- Dynamic Pill Sizing ---
+  let lastDynamicWidth = 0;
+  function setDynamicPillWidth(targetWidth) {
+    if (state.isExpanded) return;
+    if (lastDynamicWidth === targetWidth) return;
+    lastDynamicWidth = targetWidth;
+    callNative('resize_window', {
+      width: targetWidth,
+      height: 44
+    });
+  }
+
   // --- Window Expand & Collapse ---
   async function expandIsland() {
     if (state.isExpanded) return;
@@ -680,6 +692,7 @@
 
     const targetWidth = Math.max(480, state.settings.expandedWidth || 480);
     const targetHeight = Math.max(360, state.settings.expandedHeight || 360);
+    lastDynamicWidth = targetWidth;
 
     // 2. Resize native window
     callNative('resize_window', {
@@ -706,14 +719,8 @@
       elements.capsuleCompact.setAttribute('aria-expanded', 'false');
     }
 
-    const targetWidth = Math.max(290, state.settings.compactWidth || 290);
-    const targetHeight = Math.max(44, state.settings.compactHeight || 44);
-
-    // 2. Resize native window back to compact size
-    callNative('resize_window', {
-      width: targetWidth,
-      height: targetHeight
-    });
+    lastDynamicWidth = 0;
+    setTimeout(updateCompactDisplay, 50);
 
     initLivelyCanvas();
     if (state.settings.backgroundType === 'lively') {
@@ -1008,6 +1015,7 @@
 
     // 1. If files dropped, files display takes priority
     if (fileCount > 0) {
+      setDynamicPillWidth(270);
       if (elements.compactCenterContent) elements.compactCenterContent.classList.remove('audio-active');
       if (elements.compactBrand) elements.compactBrand.textContent = 'Files';
       if (elements.compactSeparator) elements.compactSeparator.style.display = 'inline';
@@ -1022,6 +1030,7 @@
 
     // 2. If actively playing music: Show Platform + Separator + Scrolling Track Title
     if (isPlaying && m) {
+      setDynamicPillWidth(315);
       if (elements.compactCenterContent) elements.compactCenterContent.classList.add('audio-active');
       if (elements.compactBrand) elements.compactBrand.textContent = m.appName || 'YouTube';
       if (elements.compactSeparator) elements.compactSeparator.style.display = 'inline';
@@ -1047,6 +1056,7 @@
     // 3. If music is stopped/paused but media app (e.g. YouTube/Spotify) is open:
     // Show ONLY platform, NO title, and audio activity not working
     if (hasSession && m && m.appName) {
+      setDynamicPillWidth(215);
       if (elements.compactCenterContent) elements.compactCenterContent.classList.remove('audio-active');
       if (elements.compactBrand) elements.compactBrand.textContent = m.appName;
       if (elements.compactSeparator) elements.compactSeparator.style.display = 'none';
@@ -1061,6 +1071,7 @@
 
     // 4. If not open YouTube / no media active (Default idle state):
     // Show ONLY platform (K2 Island), NO title, and audio activity not working
+    setDynamicPillWidth(215);
     if (elements.compactCenterContent) elements.compactCenterContent.classList.remove('audio-active');
     if (elements.compactBrand) elements.compactBrand.textContent = 'K2 Island';
     if (elements.compactSeparator) elements.compactSeparator.style.display = 'none';
