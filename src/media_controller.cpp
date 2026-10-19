@@ -12,8 +12,8 @@
 
 #ifndef __IAudioMeterInformation_INTERFACE_DEFINED__
 #define __IAudioMeterInformation_INTERFACE_DEFINED__
-DEFINE_GUID(IID_IAudioMeterInformation, 0xc0221673, 0x0301, 0x4b45, 0x9e,0x9a, 0xfd,0x3f,0x5d,0xe4,0x78,0x7a);
-MIDL_INTERFACE("c0221673-0301-4b45-9e9a-fd3f5de4787a")
+DEFINE_GUID(IID_IAudioMeterInformation, 0xc02216f6, 0x8c67, 0x4b5b, 0x9d, 0x00, 0xd0, 0x08, 0xe7, 0x3e, 0x00, 0x64);
+MIDL_INTERFACE("C02216F6-8C67-4B5B-9D00-D008E73E0064")
 IAudioMeterInformation : public IUnknown
 {
     virtual HRESULT STDMETHODCALLTYPE GetPeakValue(FLOAT *pfPeak) = 0;
@@ -22,7 +22,7 @@ IAudioMeterInformation : public IUnknown
     virtual HRESULT STDMETHODCALLTYPE QueryHardwareSupport(DWORD *pdwHardwareSupportMask) = 0;
 };
 #ifdef __CRT_UUID_DECL
-__CRT_UUID_DECL(IAudioMeterInformation, 0xc0221673, 0x0301, 0x4b45, 0x9e,0x9a, 0xfd,0x3f,0x5d,0xe4,0x78,0x7a)
+__CRT_UUID_DECL(IAudioMeterInformation, 0xc02216f6, 0x8c67, 0x4b5b, 0x9d, 0x00, 0xd0, 0x08, 0xe7, 0x3e, 0x00, 0x64)
 #endif
 #endif
 
@@ -355,6 +355,7 @@ static BOOL CALLBACK HuntMediaWindowsProc(HWND hWnd, LPARAM lParam) {
 
 void MediaController::UpdateStatusInternal() {
     MediaStatus status;
+    bool hasActiveStreamingSession = false;
 
     IMMDeviceEnumerator* pEnumerator = nullptr;
     HRESULT hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_ALL,
@@ -414,6 +415,7 @@ void MediaController::UpdateStatusInternal() {
 
                             AudioSessionState state;
                             if (SUCCEEDED(pSessionControl->GetState(&state)) && state == AudioSessionStateActive) {
+                                hasActiveStreamingSession = true;
                                 DWORD pid = 0;
                                 std::string rawExeName = "";
                                 std::wstring wndTitle = L"";
@@ -569,8 +571,8 @@ void MediaController::UpdateStatusInternal() {
         if (!huntArtist.empty()) status.artist = huntArtist;
     }
 
-    // Determine actual playback status with sensitive audio threshold (> 0.0005f)
-    if (status.peakLevel > 0.0005f) {
+    // Determine actual playback status with sensitive audio threshold and active session detection
+    if (status.peakLevel > 0.0001f || hasActiveStreamingSession) {
         m_lastAudioPeakTick = now;
         status.isPlaying = true;
         if (!status.hasActiveSession) {
@@ -579,8 +581,8 @@ void MediaController::UpdateStatusInternal() {
             status.title = "System Audio";
         }
     } else {
-        // Retain playing state for 1.2s to prevent brief silent gap flickering
-        if (now - m_lastAudioPeakTick < 1200) {
+        // Retain playing state for 2.5s to prevent brief silent gap flickering
+        if (now - m_lastAudioPeakTick < 2500) {
             status.isPlaying = true;
         } else {
             status.isPlaying = false;

@@ -171,6 +171,9 @@
       compactBrand: document.getElementById('compact-brand'),
       compactSeparator: document.getElementById('compact-separator'),
       compactStatusDot: document.getElementById('compact-status-dot'),
+      compactAnimSlot: document.getElementById('compact-anim-slot'),
+      compactMediaBadge: document.getElementById('compact-media-badge'),
+      mediaBadgeIcon: document.getElementById('media-badge-icon'),
       compactSubtext: document.getElementById('compact-subtext'),
       compactEqualizer: document.getElementById('compact-equalizer'),
       compactFileBadge: document.getElementById('compact-file-badge'),
@@ -1022,25 +1025,16 @@
     const m = state.mediaStatus;
     const isPlaying = !!(m && m.isPlaying);
     const hasSession = !!(m && m.hasActiveSession);
-
-    // Keep mini-equalizer strictly bound to actual sound playback or active session
-    if (elements.compactEqualizer) {
-      const showEq = hasSession || isPlaying;
-      elements.compactEqualizer.classList.toggle('visible', showEq);
-      elements.compactEqualizer.classList.toggle('active', isPlaying);
-      if (isPlaying && m) {
-        const label = m.title ? `${m.title} (${m.appName || 'Audio'})` : (m.appName || 'Audio Active');
-        elements.compactEqualizer.setAttribute('title', `Audio Activity: ${label}`);
-      } else if (hasSession && m) {
-        const label = m.title ? `${m.title} (${m.appName || 'Audio'})` : (m.appName || 'Audio Paused');
-        elements.compactEqualizer.setAttribute('title', `Audio Activity (Paused): ${label}`);
-      } else {
-        elements.compactEqualizer.setAttribute('title', 'Audio Activity (Idle)');
-      }
-    }
+    const mediaActive = hasSession || isPlaying;
 
     // 1. If files dropped, files display takes priority
     if (fileCount > 0) {
+      if (elements.compactMediaBadge) elements.compactMediaBadge.style.display = 'none';
+      if (elements.compactStatusDot) elements.compactStatusDot.style.display = 'block';
+      if (elements.compactAnimSlot) elements.compactAnimSlot.style.display = 'flex';
+      if (elements.compactChevronBtn) elements.compactChevronBtn.style.display = 'flex';
+      if (elements.compactEqualizer) elements.compactEqualizer.classList.remove('visible', 'active');
+
       setDynamicPillWidth(270);
       if (elements.compactCenterContent) elements.compactCenterContent.classList.remove('audio-active');
       if (elements.compactBrand) elements.compactBrand.textContent = 'Files';
@@ -1052,6 +1046,43 @@
         elements.compactSubtext.removeAttribute('title');
       }
       return;
+    }
+
+    // Toggle iOS-style compact leading media badge vs status-dot/animation
+    if (elements.compactMediaBadge) {
+      elements.compactMediaBadge.style.display = mediaActive ? 'flex' : 'none';
+      if (mediaActive) {
+        const app = (m && m.appName) ? m.appName.toLowerCase() : 'audio';
+        const cls = app.includes('youtube') ? 'youtube' : (app.includes('spotify') ? 'spotify' : (app.includes('sound') ? 'soundcloud' : 'audio'));
+        elements.compactMediaBadge.className = `compact-media-badge visible ${cls}`;
+        if (elements.mediaBadgeIcon) {
+          if (cls === 'youtube') {
+            elements.mediaBadgeIcon.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="8 5 19 12 8 19 8 5"></polygon></svg>';
+          } else if (cls === 'spotify') {
+            elements.mediaBadgeIcon.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"></circle><path d="M7 10c3-0.5 7 0 10 2M8 13c2.5-0.5 5.5 0 8 1.5M9 16c2-0.5 4 0 6 1" stroke="#000" stroke-width="2" stroke-linecap="round" fill="none"></path></svg>';
+          } else {
+            elements.mediaBadgeIcon.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>';
+          }
+        }
+      }
+    }
+    if (elements.compactStatusDot) elements.compactStatusDot.style.display = mediaActive ? 'none' : 'block';
+    if (elements.compactAnimSlot) elements.compactAnimSlot.style.display = mediaActive ? 'none' : 'flex';
+    if (elements.compactChevronBtn) elements.compactChevronBtn.style.display = mediaActive ? 'none' : 'flex';
+
+    // Keep mini-equalizer strictly bound to actual sound playback or active session
+    if (elements.compactEqualizer) {
+      elements.compactEqualizer.classList.toggle('visible', mediaActive);
+      elements.compactEqualizer.classList.toggle('active', isPlaying);
+      if (isPlaying && m) {
+        const label = m.title ? `${m.title} (${m.appName || 'Audio'})` : (m.appName || 'Audio Active');
+        elements.compactEqualizer.setAttribute('title', `Audio Activity: ${label}`);
+      } else if (hasSession && m) {
+        const label = m.title ? `${m.title} (${m.appName || 'Audio'})` : (m.appName || 'Audio Paused');
+        elements.compactEqualizer.setAttribute('title', `Audio Activity (Paused): ${label}`);
+      } else {
+        elements.compactEqualizer.setAttribute('title', 'Audio Activity (Idle)');
+      }
     }
 
     // 2. If actively playing music: Show Platform + Separator + Scrolling Track Title
@@ -1146,8 +1177,14 @@
       elements.btnMediaPlay.setAttribute('title', isPlaying ? 'Pause' : 'Play');
       elements.btnMediaPlay.setAttribute('aria-label', isPlaying ? 'Pause' : 'Play');
     }
-    if (isPlaying && elements.mediaSessionTag && elements.mediaSessionTag.textContent === 'Audio Idle') {
-      elements.mediaSessionTag.textContent = (media && media.appName) ? media.appName : 'Active';
+    if (elements.mediaSessionTag) {
+      if (isPlaying) {
+        elements.mediaSessionTag.textContent = (media && media.appName) ? `${media.appName} Playing` : 'Active';
+      } else if (media && media.hasActiveSession) {
+        elements.mediaSessionTag.textContent = (media && media.appName) ? `${media.appName} (Paused)` : 'Paused';
+      } else {
+        elements.mediaSessionTag.textContent = 'Audio Idle';
+      }
     }
   }
 
@@ -1207,6 +1244,17 @@
       });
     }
 
+    if (elements.compactMediaBadge) {
+      elements.compactMediaBadge.addEventListener('click', (e) => {
+        e.stopPropagation();
+        expandIsland();
+        switchTab('media');
+      });
+      elements.compactMediaBadge.addEventListener('mousedown', (e) => {
+        e.stopPropagation();
+      });
+    }
+
     if (elements.compactEqualizer) {
       elements.compactEqualizer.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -1240,7 +1288,7 @@
     }
 
     // 0. Prevent window drag from stealing clicks on buttons and inputs
-    document.querySelectorAll('button, input, select, .compact-chevron, .hdr-btn, .dock-btn, .seg-btn, .pill-btn, .filter-chip, .shortcut-tile, .ios-checkbox, .ios-switch, .file-card-item, .reminder-row, .compact-anim-slot, .mini-equalizer').forEach(el => {
+    document.querySelectorAll('button, input, select, .compact-chevron, .hdr-btn, .dock-btn, .seg-btn, .pill-btn, .filter-chip, .shortcut-tile, .ios-checkbox, .ios-switch, .file-card-item, .reminder-row, .compact-anim-slot, .mini-equalizer, .compact-media-badge').forEach(el => {
       el.addEventListener('mousedown', (e) => {
         e.stopPropagation();
       });
