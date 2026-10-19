@@ -8,6 +8,7 @@
 #include <shlwapi.h>
 #include <dwmapi.h>
 #include <iostream>
+#include <vector>
 
 #define WM_TRAYICON (WM_APP + 1)
 #define ID_TRAY_OPEN 1001
@@ -22,10 +23,10 @@ namespace K2 {
 static std::string Utf16ToUtf8(const std::wstring& utf16) {
     if (utf16.empty()) return "";
     int len = WideCharToMultiByte(CP_UTF8, 0, utf16.c_str(), -1, NULL, 0, NULL, NULL);
-    if (len <= 0) return "";
-    std::string utf8(len - 1, '\0');
-    WideCharToMultiByte(CP_UTF8, 0, utf16.c_str(), -1, &utf8[0], len, NULL, NULL);
-    return utf8;
+    if (len <= 1) return "";
+    std::vector<char> buf(len, 0);
+    WideCharToMultiByte(CP_UTF8, 0, utf16.c_str(), -1, buf.data(), len, NULL, NULL);
+    return std::string(buf.data());
 }
 
 AppWindow::AppWindow() {

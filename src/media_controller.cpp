@@ -4,7 +4,9 @@
 #include <audiopolicy.h>
 #include <psapi.h>
 #include <shlwapi.h>
+#include "logger.h"
 #include <iostream>
+#include <vector>
 #include <algorithm>
 
 #ifndef __IAudioMeterInformation_INTERFACE_DEFINED__
@@ -69,11 +71,8 @@ bool MediaController::ToggleMute() {
     bool toggled = false;
     bool newMuteState = false;
 
-    HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
-    bool coInitializedByMe = (hr == S_OK);
-
     IMMDeviceEnumerator* pEnumerator = nullptr;
-    hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_ALL,
+    HRESULT hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_ALL,
         __uuidof(IMMDeviceEnumerator), (void**)&pEnumerator);
 
     if (SUCCEEDED(hr) && pEnumerator) {
@@ -96,10 +95,6 @@ bool MediaController::ToggleMute() {
             pDevice->Release();
         }
         pEnumerator->Release();
-    }
-
-    if (coInitializedByMe) {
-        CoUninitialize();
     }
 
     if (!toggled) {
@@ -135,10 +130,11 @@ static BOOL CALLBACK EnumMediaWindowsProc(HWND hWnd, LPARAM lParam) {
 
 static std::string Utf16ToUtf8Str(const std::wstring& wstr) {
     if (wstr.empty()) return "";
-    int len = WideCharToMultiByte(CP_UTF8, 0, wstr.data(), (int)wstr.size(), NULL, 0, NULL, NULL);
-    std::string s(len, 0);
-    WideCharToMultiByte(CP_UTF8, 0, wstr.data(), (int)wstr.size(), &s[0], len, NULL, NULL);
-    return s;
+    int len = WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, NULL, 0, NULL, NULL);
+    if (len <= 1) return "";
+    std::vector<char> buf(len, 0);
+    WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, buf.data(), len, NULL, NULL);
+    return std::string(buf.data());
 }
 
 static void ExtractTrackMetadata(const std::string& appExe, const std::wstring& wndTitle, MediaStatus& status) {
@@ -284,14 +280,13 @@ static BOOL CALLBACK HuntMediaWindowsProc(HWND hWnd, LPARAM lParam) {
 }
 
 MediaStatus MediaController::GetStatus() {
+    K2::Log("Media: GetStatus ENTER");
     MediaStatus status;
 
-    HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
-    bool coInitializedByMe = (hr == S_OK);
-
     IMMDeviceEnumerator* pEnumerator = nullptr;
-    hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_ALL,
+    HRESULT hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_ALL,
         __uuidof(IMMDeviceEnumerator), (void**)&pEnumerator);
+    K2::Log("Media: CoCreateInstance hr=" + std::to_string(hr));
 
     if (SUCCEEDED(hr) && pEnumerator) {
         IMMDevice* pDevice = nullptr;
@@ -321,6 +316,7 @@ MediaStatus MediaController::GetStatus() {
                 }
                 pMeterInfo->Release();
             }
+            K2::Log("Media: Meter check peak=" + std::to_string(status.peakLevel));
 
             // 3. Audio sessions inspection
             IAudioSessionManager2* pSessionManager = nullptr;
@@ -350,11 +346,8 @@ MediaStatus MediaController::GetStatus() {
                                             DWORD size = MAX_PATH;
                                             if (QueryFullProcessImageNameW(hProcess, 0, processPath, &size)) {
                                                 wchar_t* fileName = PathFindFileNameW(processPath);
-                                                int len = WideCharToMultiByte(CP_UTF8, 0, fileName, -1, NULL, 0, NULL, NULL);
-                                                if (len > 0) {
-                                                    std::string appNameStr(len - 1, '\0');
-                                                    WideCharToMultiByte(CP_UTF8, 0, fileName, -1, &appNameStr[0], len, NULL, NULL);
-                                                    rawExeName = appNameStr;
+                                                if (fileName && fileName[0] != L'\0') {
+                                                    rawExeName = Utf16ToUtf8Str(fileName);
                                                 }
                                             }
                                             CloseHandle(hProcess);
@@ -395,14 +388,12 @@ MediaStatus MediaController::GetStatus() {
         }
         pEnumerator->Release();
     }
-
-    if (coInitializedByMe) {
-        CoUninitialize();
-    }
+    K2::Log("Media: Sessions done");
 
     // Always hunt for active YouTube or Spotify windows to ensure precise track title & platform
     MediaWindowHunt hunt;
     EnumWindows(HuntMediaWindowsProc, reinterpret_cast<LPARAM>(&hunt));
+    K2::Log("Media: Hunt done found=" + std::string(hunt.found ? "true" : "false"));
     if (hunt.found) {
         status.hasActiveSession = true;
         status.appName = hunt.appName;
@@ -437,6 +428,7 @@ MediaStatus MediaController::GetStatus() {
         status.statusText = "Idle";
     }
 
+    K2::Log("Media: GetStatus LEAVE");
     return status;
 }
 

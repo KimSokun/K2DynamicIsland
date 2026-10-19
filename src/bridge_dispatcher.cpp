@@ -28,10 +28,10 @@ static std::wstring Utf8ToUtf16(const std::string& utf8) {
 static std::string Utf16ToUtf8(const std::wstring& utf16) {
     if (utf16.empty()) return "";
     int len = WideCharToMultiByte(CP_UTF8, 0, utf16.c_str(), -1, NULL, 0, NULL, NULL);
-    if (len <= 0) return "";
-    std::string utf8(len - 1, '\0');
-    WideCharToMultiByte(CP_UTF8, 0, utf16.c_str(), -1, &utf8[0], len, NULL, NULL);
-    return utf8;
+    if (len <= 1) return "";
+    std::vector<char> buf(len, 0);
+    WideCharToMultiByte(CP_UTF8, 0, utf16.c_str(), -1, buf.data(), len, NULL, NULL);
+    return std::string(buf.data());
 }
 
 static std::string Base64Encode(const std::vector<unsigned char>& data) {
