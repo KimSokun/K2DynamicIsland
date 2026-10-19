@@ -41,7 +41,6 @@ void MediaController::SendMediaKey(BYTE vkCode) {
 }
 
 bool MediaController::PlayPause() {
-    m_lastAudioPeakTick = 0;
     SendMediaKey(VK_MEDIA_PLAY_PAUSE);
     return true;
 }

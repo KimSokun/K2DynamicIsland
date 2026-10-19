@@ -1137,14 +1137,14 @@
     }
     if (elements.iconPlayPause) {
       if (isPlaying) {
-        elements.iconPlayPause.innerHTML = '<rect x="6" y="4" width="4" height="16" fill="currentColor"></rect><rect x="14" y="4" width="4" height="16" fill="currentColor"></rect>';
-      } else {
         elements.iconPlayPause.innerHTML = '<polygon points="5 3 19 12 5 21 5 3" fill="currentColor"></polygon>';
+      } else {
+        elements.iconPlayPause.innerHTML = '<rect x="6" y="4" width="4" height="16" fill="currentColor"></rect><rect x="14" y="4" width="4" height="16" fill="currentColor"></rect>';
       }
     }
     if (elements.btnMediaPlay) {
-      elements.btnMediaPlay.setAttribute('title', isPlaying ? 'Pause' : 'Play');
-      elements.btnMediaPlay.setAttribute('aria-label', isPlaying ? 'Pause' : 'Play');
+      elements.btnMediaPlay.setAttribute('title', isPlaying ? 'Playing (Click to Pause)' : 'Paused (Click to Play)');
+      elements.btnMediaPlay.setAttribute('aria-label', isPlaying ? 'Playing' : 'Paused');
     }
     if (isPlaying && elements.mediaSessionTag && elements.mediaSessionTag.textContent === 'Audio Idle') {
       elements.mediaSessionTag.textContent = (media && media.appName) ? media.appName : 'Active';
@@ -1331,8 +1331,9 @@
         elements.btnMediaPlay.style.transform = 'scale(0.88)';
         setTimeout(() => { if (elements.btnMediaPlay) elements.btnMediaPlay.style.transform = ''; }, 140);
 
+        lastMediaKey = '';
         await callNative('media_command', { action: 'playPause' });
-        setTimeout(updateMediaStatus, 500);
+        setTimeout(updateMediaStatus, 400);
       });
     }
 
