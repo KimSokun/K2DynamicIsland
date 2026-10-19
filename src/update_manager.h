@@ -87,7 +87,7 @@ private:
     std::wstring m_verifiedInstallerPath;
 
     ULONGLONG m_lastCheckTick = 0;
-    const std::string m_appVersion = "1.1.5";
+    const std::string m_appVersion = "1.1.6";
     const std::string m_repoOwner = "K2DynamicIsland";
     const std::string m_repoName = "K2DynamicIsland.github.io";
 };

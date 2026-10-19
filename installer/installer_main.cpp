@@ -305,7 +305,7 @@ static DWORD WINAPI InstallThreadProc(LPVOID lpParam) {
     const wchar_t* uninstSubKey = L"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\K2DynamicIsland";
     if (RegCreateKeyExW(HKEY_CURRENT_USER, uninstSubKey, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hUninstKey, NULL) == ERROR_SUCCESS) {
         const wchar_t* appName = L"K2 Dynamic Island";
-        const wchar_t* appVer = L"1.1.5";
+        const wchar_t* appVer = L"1.1.6";
         const wchar_t* publisher = L"K2 Studio";
         std::wstring uninstCmd = L"\"" + ctx->installDir + L"\\Uninstall.exe\"";
         std::wstring iconPath = L"\"" + targetExe + L"\",0";

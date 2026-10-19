@@ -329,105 +329,80 @@ void UpdateManager::WorkerCheckForUpdates(bool manual) {
         return;
     }
 
-    WinHttpSetTimeouts(hSession, 4000, 4000, 6000, 6000);
-
-    // Connect to GitHub API
-    HINTERNET hConnect = WinHttpConnect(hSession, L"api.github.com", INTERNET_DEFAULT_HTTPS_PORT, 0);
-    if (!hConnect) {
-        WinHttpCloseHandle(hSession);
-        std::lock_guard<std::mutex> lock(m_mutex);
-        m_state = UpdateState::Error;
-        m_progress.error = "Could not connect to api.github.com.";
-        if (m_eventCallback) m_eventCallback("updateStatusChanged", GetStatusJson());
-        return;
-    }
-
-    std::wstring requestPath = L"/repos/" + std::wstring(m_repoOwner.begin(), m_repoOwner.end()) +
-                               L"/" + std::wstring(m_repoName.begin(), m_repoName.end()) +
-                               L"/releases/latest";
-
-    HINTERNET hRequest = WinHttpOpenRequest(hConnect, L"GET", requestPath.c_str(),
-        NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE);
-
-    if (!hRequest) {
-        WinHttpCloseHandle(hConnect);
-        WinHttpCloseHandle(hSession);
-        std::lock_guard<std::mutex> lock(m_mutex);
-        m_state = UpdateState::Error;
-        m_progress.error = "Failed to create HTTP request.";
-        if (m_eventCallback) m_eventCallback("updateStatusChanged", GetStatusJson());
-        return;
-    }
-
-    std::wstring headers = L"User-Agent: K2DynamicIsland-Updater/1.0\r\nAccept: application/vnd.github.v3+json\r\n";
-    BOOL sent = WinHttpSendRequest(hRequest, headers.c_str(), (DWORD)headers.length(), WINHTTP_NO_REQUEST_DATA, 0, 0, 0);
-
-    if (!sent || !WinHttpReceiveResponse(hRequest, NULL)) {
-        WinHttpCloseHandle(hRequest);
-        WinHttpCloseHandle(hConnect);
-        WinHttpCloseHandle(hSession);
-        std::lock_guard<std::mutex> lock(m_mutex);
-        m_state = UpdateState::Error;
-        m_progress.error = "Failed to receive response from GitHub.";
-        if (m_eventCallback) m_eventCallback("updateStatusChanged", GetStatusJson());
-        return;
-    }
-
-    DWORD statusCode = 0;
-    DWORD statusCodeSize = sizeof(statusCode);
-    WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
-        WINHTTP_HEADER_NAME_BY_INDEX, &statusCode, &statusCodeSize, WINHTTP_NO_HEADER_INDEX);
+    WinHttpSetTimeouts(hSession, 3000, 3000, 4000, 4000);
 
     std::string jsonBody;
+    DWORD statusCode = 0;
 
-    if (statusCode == 200) {
-        DWORD bytesAvailable = 0;
-        while (WinHttpQueryDataAvailable(hRequest, &bytesAvailable) && bytesAvailable > 0) {
-            std::vector<char> buf(bytesAvailable + 1, 0);
-            DWORD bytesRead = 0;
-            if (WinHttpReadData(hRequest, buf.data(), bytesAvailable, &bytesRead) && bytesRead > 0) {
-                jsonBody.append(buf.data(), bytesRead);
+    // 1. First, check public high-speed CDN update metadata on GitHub Pages sites
+    std::vector<std::wstring> pagesHosts = { L"k2dynamicisland.github.io", L"kimsokun.github.io" };
+    for (const auto& pagesHost : pagesHosts) {
+        HINTERNET hPagesConnect = WinHttpConnect(hSession, pagesHost.c_str(), INTERNET_DEFAULT_HTTPS_PORT, 0);
+        if (hPagesConnect) {
+            HINTERNET hPagesReq = WinHttpOpenRequest(hPagesConnect, L"GET", L"/version.json",
+                NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE);
+            if (hPagesReq) {
+                if (WinHttpSendRequest(hPagesReq, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0) &&
+                    WinHttpReceiveResponse(hPagesReq, NULL)) {
+                    DWORD pCode = 0;
+                    DWORD pSize = sizeof(pCode);
+                    WinHttpQueryHeaders(hPagesReq, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+                        WINHTTP_HEADER_NAME_BY_INDEX, &pCode, &pSize, WINHTTP_NO_HEADER_INDEX);
+                    if (pCode == 200) {
+                        DWORD avail = 0;
+                        while (WinHttpQueryDataAvailable(hPagesReq, &avail) && avail > 0) {
+                            std::vector<char> buf(avail + 1, 0);
+                            DWORD read = 0;
+                            if (WinHttpReadData(hPagesReq, buf.data(), avail, &read) && read > 0) {
+                                jsonBody.append(buf.data(), read);
+                            }
+                        }
+                        if (!jsonBody.empty()) {
+                            statusCode = 200;
+                        }
+                    }
+                }
+                WinHttpCloseHandle(hPagesReq);
             }
+            WinHttpCloseHandle(hPagesConnect);
         }
+        if (!jsonBody.empty() && statusCode == 200) break;
     }
 
-    WinHttpCloseHandle(hRequest);
-    WinHttpCloseHandle(hConnect);
+    // 2. Fallback to GitHub REST API if CDN metadata was unavailable
+    if (jsonBody.empty()) {
+        HINTERNET hConnect = WinHttpConnect(hSession, L"api.github.com", INTERNET_DEFAULT_HTTPS_PORT, 0);
+        if (hConnect) {
+            std::wstring requestPath = L"/repos/" + std::wstring(m_repoOwner.begin(), m_repoOwner.end()) +
+                                       L"/" + std::wstring(m_repoName.begin(), m_repoName.end()) +
+                                       L"/releases/latest";
 
-    // Fallback to checking public update metadata on GitHub Pages sites (k2dynamicisland.github.io / kimsokun.github.io)
-    if (jsonBody.empty() || statusCode == 404) {
-        std::vector<std::wstring> fallbackHosts = { L"k2dynamicisland.github.io", L"kimsokun.github.io" };
-        for (const auto& pagesHost : fallbackHosts) {
-            HINTERNET hPagesConnect = WinHttpConnect(hSession, pagesHost.c_str(), INTERNET_DEFAULT_HTTPS_PORT, 0);
-            if (hPagesConnect) {
-                HINTERNET hPagesReq = WinHttpOpenRequest(hPagesConnect, L"GET", L"/version.json",
-                    NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE);
-                if (hPagesReq) {
-                    if (WinHttpSendRequest(hPagesReq, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0) &&
-                        WinHttpReceiveResponse(hPagesReq, NULL)) {
-                        DWORD pCode = 0;
-                        DWORD pSize = sizeof(pCode);
-                        WinHttpQueryHeaders(hPagesReq, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
-                            WINHTTP_HEADER_NAME_BY_INDEX, &pCode, &pSize, WINHTTP_NO_HEADER_INDEX);
-                        if (pCode == 200) {
-                            DWORD avail = 0;
-                            while (WinHttpQueryDataAvailable(hPagesReq, &avail) && avail > 0) {
-                                std::vector<char> buf(avail + 1, 0);
-                                DWORD read = 0;
-                                if (WinHttpReadData(hPagesReq, buf.data(), avail, &read) && read > 0) {
-                                    jsonBody.append(buf.data(), read);
-                                }
-                            }
-                            if (!jsonBody.empty()) {
-                                statusCode = 200;
+            HINTERNET hRequest = WinHttpOpenRequest(hConnect, L"GET", requestPath.c_str(),
+                NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE);
+
+            if (hRequest) {
+                std::wstring headers = L"User-Agent: K2DynamicIsland-Updater/1.0\r\nAccept: application/vnd.github.v3+json\r\n";
+                if (WinHttpSendRequest(hRequest, headers.c_str(), (DWORD)headers.length(), WINHTTP_NO_REQUEST_DATA, 0, 0, 0) &&
+                    WinHttpReceiveResponse(hRequest, NULL)) {
+                    DWORD apiCode = 0;
+                    DWORD apiCodeSize = sizeof(apiCode);
+                    WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+                        WINHTTP_HEADER_NAME_BY_INDEX, &apiCode, &apiCodeSize, WINHTTP_NO_HEADER_INDEX);
+
+                    if (apiCode == 200) {
+                        DWORD bytesAvailable = 0;
+                        while (WinHttpQueryDataAvailable(hRequest, &bytesAvailable) && bytesAvailable > 0) {
+                            std::vector<char> buf(bytesAvailable + 1, 0);
+                            DWORD bytesRead = 0;
+                            if (WinHttpReadData(hRequest, buf.data(), bytesAvailable, &bytesRead) && bytesRead > 0) {
+                                jsonBody.append(buf.data(), bytesRead);
                             }
                         }
                     }
-                    WinHttpCloseHandle(hPagesReq);
                 }
-                WinHttpCloseHandle(hPagesConnect);
+                WinHttpCloseHandle(hRequest);
             }
-            if (!jsonBody.empty()) break;
+            WinHttpCloseHandle(hConnect);
         }
     }
 

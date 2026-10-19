@@ -1831,7 +1831,7 @@
           elements.aboutAppVersion.textContent = `v${state.settings.appVersion} (x64 Release)`;
         }
         if (elements.updateStatusMsg && (!latestUpdateData || latestUpdateData.state === 'idle')) {
-          elements.updateStatusMsg.textContent = `Running latest release (v${state.settings.appVersion || '1.1.5'})`;
+          elements.updateStatusMsg.textContent = `Running latest release (v${state.settings.appVersion || '1.1.6'})`;
         }
       } else {
         applyTheme('dark', 'glass', 'preset1');
