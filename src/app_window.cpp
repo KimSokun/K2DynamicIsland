@@ -4,6 +4,7 @@
 #include "storage_manager.h"
 #include "drop_target.h"
 #include "update_manager.h"
+#include "logger.h"
 #include <shlwapi.h>
 #include <dwmapi.h>
 #include <iostream>
@@ -299,10 +300,12 @@ LRESULT AppWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
     }
 
     case WM_CLOSE:
+        K2::Log("AppWindow: WM_CLOSE received");
         CloseApp();
         return 0;
 
     case WM_DESTROY:
+        K2::Log("AppWindow: WM_DESTROY received");
         PostQuitMessage(0);
         return 0;
     }
@@ -442,6 +445,7 @@ void AppWindow::ShowWindow() {
 }
 
 void AppWindow::CloseApp() {
+    K2::Log("AppWindow: CloseApp called");
     RemoveTrayIcon();
     DestroyWindow(m_hWnd);
 }

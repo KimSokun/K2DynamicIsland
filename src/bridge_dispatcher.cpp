@@ -4,6 +4,7 @@
 #include "system_stats.h"
 #include "media_controller.h"
 #include "update_manager.h"
+#include "logger.h"
 #include <shlobj.h>
 #include <shlwapi.h>
 #include <shellapi.h>
@@ -165,6 +166,7 @@ bool BridgeDispatcher::SafeCopyFile(const std::wstring& source, const std::wstri
 }
 
 std::string BridgeDispatcher::DispatchMessage(const std::string& rawJson) {
+    K2::Log("DispatchMessage: " + rawJson);
     json response;
     response["success"] = false;
 

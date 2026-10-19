@@ -70,7 +70,7 @@ bool MediaController::ToggleMute() {
     bool newMuteState = false;
 
     HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
-    bool coInitializedByMe = SUCCEEDED(hr);
+    bool coInitializedByMe = (hr == S_OK);
 
     IMMDeviceEnumerator* pEnumerator = nullptr;
     hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_ALL,
@@ -287,7 +287,7 @@ MediaStatus MediaController::GetStatus() {
     MediaStatus status;
 
     HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
-    bool coInitializedByMe = SUCCEEDED(hr);
+    bool coInitializedByMe = (hr == S_OK);
 
     IMMDeviceEnumerator* pEnumerator = nullptr;
     hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_ALL,
