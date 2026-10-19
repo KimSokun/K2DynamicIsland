@@ -22,7 +22,7 @@ enum class UpdateState {
 };
 
 struct UpdateInfo {
-    std::string currentVersion = "1.0.0";
+    std::string currentVersion = "1.1.0";
     std::string latestVersion = "";
     std::string releaseNotes = "";
     std::string downloadUrl = "";
@@ -86,9 +86,9 @@ private:
     std::wstring m_verifiedInstallerPath;
 
     ULONGLONG m_lastCheckTick = 0;
-    const std::string m_appVersion = "1.0.0";
-    const std::string m_repoOwner = "KimSokun";
-    const std::string m_repoName = "K2DynamicIsland";
+    const std::string m_appVersion = "1.1.0";
+    const std::string m_repoOwner = "K2DynamicIsland";
+    const std::string m_repoName = "K2DynamicIsland.github.io";
 };
 
 } // namespace K2

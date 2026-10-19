@@ -105,15 +105,17 @@ static DWORD WINAPI InstallThreadProc(LPVOID lpParam) {
     PostMessageW(ctx->hWnd, WM_INSTALL_PROGRESS, 10, (LPARAM)L"Preparing installation...");
     Sleep(250);
 
-    // Terminate existing instance if open
-    HWND hExisting = FindWindowW(L"K2DynamicIslandWindowClass", L"K2 Dynamic Island");
-    if (hExisting) {
-        PostMessageW(hExisting, WM_CLOSE, 0, 0);
-        Sleep(500);
-    }
+    // Forcibly terminate any running instance of K2DynamicIsland.exe so files and mutex are freed
+    PostMessageW(ctx->hWnd, WM_INSTALL_PROGRESS, 15, (LPARAM)L"Stopping running application instance...");
+    system("taskkill /f /im K2DynamicIsland.exe 2>nul");
+    Sleep(600);
 
-    // 2. Ensure install directory exists
+    // 2. Ensure install directory exists and reset attributes
     SHCreateDirectoryExW(NULL, ctx->installDir.c_str(), NULL);
+    std::wstring assetsFolder = ctx->installDir + L"\\assets";
+    SetFileAttributesW(assetsFolder.c_str(), FILE_ATTRIBUTE_NORMAL);
+    std::wstring targetExe = ctx->installDir + L"\\K2DynamicIsland.exe";
+    SetFileAttributesW(targetExe.c_str(), FILE_ATTRIBUTE_NORMAL);
 
     // 3. Extract payload resource
     PostMessageW(ctx->hWnd, WM_INSTALL_PROGRESS, 25, (LPARAM)L"Unpacking package archives...");
@@ -154,6 +156,7 @@ static DWORD WINAPI InstallThreadProc(LPVOID lpParam) {
     // 4. Extracting files
     PostMessageW(ctx->hWnd, WM_INSTALL_PROGRESS, 50, (LPARAM)L"Installing application files...");
     std::wstring cmd = L"/c tar.exe -xf \"" + tempZip + L"\" -C \"" + ctx->installDir + L"\"";
+    bool tarSuccess = false;
     SHELLEXECUTEINFOW sei = {};
     sei.cbSize = sizeof(sei);
     sei.fMask = SEE_MASK_NOCLOSEPROCESS;
@@ -163,14 +166,16 @@ static DWORD WINAPI InstallThreadProc(LPVOID lpParam) {
     sei.nShow = SW_HIDE;
 
     if (ShellExecuteExW(&sei) && sei.hProcess) {
-        WaitForSingleObject(sei.hProcess, 15000);
+        if (WaitForSingleObject(sei.hProcess, 15000) == WAIT_OBJECT_0) {
+            DWORD exitCode = 1;
+            GetExitCodeProcess(sei.hProcess, &exitCode);
+            tarSuccess = (exitCode == 0);
+        }
         CloseHandle(sei.hProcess);
     }
 
-    std::wstring targetExe = ctx->installDir + L"\\K2DynamicIsland.exe";
-
-    // Fallback extraction via PowerShell if tar did not unpack targetExe
-    if (GetFileAttributesW(targetExe.c_str()) == INVALID_FILE_ATTRIBUTES) {
+    // Fallback extraction via PowerShell if tar did not succeed
+    if (!tarSuccess) {
         std::wstring psCmd = L"-NoProfile -ExecutionPolicy Bypass -Command \"Expand-Archive -LiteralPath '" + tempZip + L"' -DestinationPath '" + ctx->installDir + L"' -Force\"";
         SHELLEXECUTEINFOW psSei = {};
         psSei.cbSize = sizeof(psSei);
@@ -192,8 +197,15 @@ static DWORD WINAPI InstallThreadProc(LPVOID lpParam) {
         return 1;
     }
 
+    // Clear stale WebView2 cache so newly installed frontend assets are loaded fresh
+    wchar_t appData[MAX_PATH] = {};
+    if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_APPDATA, NULL, 0, appData))) {
+        std::wstring cacheDir = std::wstring(appData) + L"\\K2DynamicIsland\\WebView2Cache";
+        std::wstring rmCmd = L"-NoProfile -Command \"Remove-Item -Path '" + cacheDir + L"' -Recurse -Force -ErrorAction SilentlyContinue\"";
+        ShellExecuteW(NULL, L"open", L"powershell.exe", rmCmd.c_str(), NULL, SW_HIDE);
+    }
+
     // Protect application assets by applying hidden and system file attributes
-    std::wstring assetsFolder = ctx->installDir + L"\\assets";
     if (GetFileAttributesW(assetsFolder.c_str()) != INVALID_FILE_ATTRIBUTES) {
         SetFileAttributesW(assetsFolder.c_str(), FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM);
     }
@@ -218,7 +230,7 @@ static DWORD WINAPI InstallThreadProc(LPVOID lpParam) {
     const wchar_t* uninstSubKey = L"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\K2DynamicIsland";
     if (RegCreateKeyExW(HKEY_CURRENT_USER, uninstSubKey, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hUninstKey, NULL) == ERROR_SUCCESS) {
         const wchar_t* appName = L"K2 Dynamic Island";
-        const wchar_t* appVer = L"1.0.0";
+        const wchar_t* appVer = L"1.1.0";
         const wchar_t* publisher = L"K2 Studio";
         std::wstring uninstCmd = L"\"" + ctx->installDir + L"\\Uninstall.exe\"";
         std::wstring iconPath = L"\"" + targetExe + L"\",0";

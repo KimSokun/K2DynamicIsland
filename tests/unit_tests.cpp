@@ -269,6 +269,7 @@ bool Test_UpdateUrlSecurity() {
     TEST_ASSERT(UpdateManager::ValidateHttpsUrl("https://api.github.com/repos/KimSokun/K2DynamicIsland/releases"), "GitHub API URL should pass");
     TEST_ASSERT(UpdateManager::ValidateHttpsUrl("https://objects.githubusercontent.com/github-production-release-asset/installer.exe"), "GitHub usercontent URL should pass");
     TEST_ASSERT(UpdateManager::ValidateHttpsUrl("https://kimsokun.github.io/downloads/K2DynamicIsland-Setup.exe"), "Valid GitHub Pages public download URL should pass");
+    TEST_ASSERT(UpdateManager::ValidateHttpsUrl("https://k2dynamicisland.github.io/downloads/K2DynamicIsland-Setup.exe"), "Valid K2DynamicIsland GitHub Pages URL should pass");
 
     // 2. Insecure or untrusted URLs MUST fail
     TEST_ASSERT(!UpdateManager::ValidateHttpsUrl("http://github.com/insecure.exe"), "Plain HTTP must be rejected");

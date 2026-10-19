@@ -4,8 +4,8 @@
 201 RCDATA "payload.zip"
 
 1 VERSIONINFO
-FILEVERSION 1,0,0,0
-PRODUCTVERSION 1,0,0,0
+FILEVERSION 1,1,0,0
+PRODUCTVERSION 1,1,0,0
 FILEFLAGSMASK 0x3fL
 FILEFLAGS 0x0L
 FILEOS 0x40004L
@@ -18,12 +18,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "K2 Studio"
             VALUE "FileDescription", "K2 Dynamic Island Setup"
-            VALUE "FileVersion", "1.0.0.0"
+            VALUE "FileVersion", "1.1.0.0"
             VALUE "InternalName", "K2DynamicIsland-Setup"
             VALUE "LegalCopyright", "Copyright (C) 2026 K2 Studio"
             VALUE "OriginalFilename", "K2DynamicIsland-Setup.exe"
             VALUE "ProductName", "K2 Dynamic Island Setup"
-            VALUE "ProductVersion", "1.0.0.0"
+            VALUE "ProductVersion", "1.1.0.0"
         END
     END
     BLOCK "VarFileInfo"
