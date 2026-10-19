@@ -110,6 +110,24 @@ static DWORD WINAPI InstallThreadProc(LPVOID lpParam) {
     system("taskkill /f /im K2DynamicIsland.exe 2>nul");
     Sleep(600);
 
+    // Clear stale WebView2 cache synchronously before extraction so there are no file locks or background race conditions
+    wchar_t appDataPath[MAX_PATH] = {};
+    if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_APPDATA, NULL, 0, appDataPath))) {
+        std::wstring cacheDir = std::wstring(appDataPath) + L"\\K2DynamicIsland\\WebView2Cache";
+        std::wstring rmCmd = L"/c rmdir /s /q \"" + cacheDir + L"\" 2>nul";
+        SHELLEXECUTEINFOW rmSei = {};
+        rmSei.cbSize = sizeof(rmSei);
+        rmSei.fMask = SEE_MASK_NOCLOSEPROCESS;
+        rmSei.lpVerb = L"open";
+        rmSei.lpFile = L"cmd.exe";
+        rmSei.lpParameters = rmCmd.c_str();
+        rmSei.nShow = SW_HIDE;
+        if (ShellExecuteExW(&rmSei) && rmSei.hProcess) {
+            WaitForSingleObject(rmSei.hProcess, 5000);
+            CloseHandle(rmSei.hProcess);
+        }
+    }
+
     // 2. Ensure install directory exists and reset attributes
     SHCreateDirectoryExW(NULL, ctx->installDir.c_str(), NULL);
     std::wstring assetsFolder = ctx->installDir + L"\\assets";
@@ -195,19 +213,6 @@ static DWORD WINAPI InstallThreadProc(LPVOID lpParam) {
     if (GetFileAttributesW(targetExe.c_str()) == INVALID_FILE_ATTRIBUTES) {
         PostMessageW(ctx->hWnd, WM_INSTALL_ERROR, 0, (LPARAM)L"Extraction failed. Could not write application binaries.");
         return 1;
-    }
-
-    // Clear stale WebView2 cache so newly installed frontend assets are loaded fresh
-    wchar_t appData[MAX_PATH] = {};
-    if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_APPDATA, NULL, 0, appData))) {
-        std::wstring cacheDir = std::wstring(appData) + L"\\K2DynamicIsland\\WebView2Cache";
-        std::wstring rmCmd = L"-NoProfile -Command \"Remove-Item -Path '" + cacheDir + L"' -Recurse -Force -ErrorAction SilentlyContinue\"";
-        ShellExecuteW(NULL, L"open", L"powershell.exe", rmCmd.c_str(), NULL, SW_HIDE);
-    }
-
-    // Protect application assets by applying hidden and system file attributes
-    if (GetFileAttributesW(assetsFolder.c_str()) != INVALID_FILE_ATTRIBUTES) {
-        SetFileAttributesW(assetsFolder.c_str(), FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM);
     }
 
     // 5. Creating Shortcuts
