@@ -404,6 +404,17 @@ std::string BridgeDispatcher::DispatchMessage(const std::string& rawJson) {
                 response["isMuted"] = isMuted;
             }
             response["success"] = true;
+            MediaStatus ms = MediaController::Instance().GetStatus();
+            response["media"] = {
+                {"hasActiveSession", ms.hasActiveSession},
+                {"isPlaying", ms.isPlaying},
+                {"appName", ms.appName},
+                {"title", ms.title},
+                {"artist", ms.artist},
+                {"peakLevel", ms.peakLevel},
+                {"isMuted", ms.isMuted},
+                {"statusText", ms.statusText}
+            };
         }
         else if (command == "quick_action") {
             std::string action = req.value("action", "");

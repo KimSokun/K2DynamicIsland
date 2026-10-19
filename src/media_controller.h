@@ -43,6 +43,7 @@ private:
     MediaStatus m_cachedStatus;
 
     ULONGLONG m_lastAudioPeakTick = 0;
+    bool m_userExplicitPaused = false;
     HWND m_cachedMediaHwnd = nullptr;
     std::string m_cachedAppName = "";
     std::string m_cachedTitle = "";

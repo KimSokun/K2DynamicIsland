@@ -1172,6 +1172,30 @@
     }
   }
 
+  function applyMediaStatus(m) {
+    if (!m) return;
+    state.mediaStatus = m;
+    const isPlaying = !!(m.isPlaying);
+
+    if (m.hasActiveSession) {
+      if (elements.mediaTitle) elements.mediaTitle.textContent = m.title || 'Audio Session Active';
+      if (elements.mediaArtist) elements.mediaArtist.textContent = m.artist ? `${m.artist} (${m.appName || 'Audio'})` : (m.appName ? `Playing via ${m.appName}` : 'Playing Audio');
+      if (elements.mediaSessionTag) elements.mediaSessionTag.textContent = m.appName || 'Active';
+    } else {
+      if (elements.mediaTitle) elements.mediaTitle.textContent = 'No Media Active';
+      if (elements.mediaArtist) elements.mediaArtist.textContent = 'Spotify • YouTube • Windows Media Player • VLC';
+      if (elements.mediaSessionTag) elements.mediaSessionTag.textContent = 'Audio Idle';
+    }
+
+    setMediaPlaying(isPlaying, m);
+    updateCompactDisplay();
+
+    if (m.isMuted !== undefined) {
+      if (elements.btnMediaMute) elements.btnMediaMute.classList.toggle('active', m.isMuted);
+      if (elements.btnToolMute) elements.btnToolMute.classList.toggle('active', m.isMuted);
+    }
+  }
+
   let lastMediaKey = '';
   async function updateMediaStatus() {
     try {
@@ -1183,26 +1207,7 @@
           return;
         }
         lastMediaKey = currentKey;
-        state.mediaStatus = m;
-        const isPlaying = !!(m.isPlaying);
-
-        if (m.hasActiveSession) {
-          if (elements.mediaTitle) elements.mediaTitle.textContent = m.title || 'Audio Session Active';
-          if (elements.mediaArtist) elements.mediaArtist.textContent = m.artist ? `${m.artist} (${m.appName || 'Audio'})` : (m.appName ? `Playing via ${m.appName}` : 'Playing Audio');
-          if (elements.mediaSessionTag) elements.mediaSessionTag.textContent = m.appName || 'Active';
-        } else {
-          if (elements.mediaTitle) elements.mediaTitle.textContent = 'No Media Active';
-          if (elements.mediaArtist) elements.mediaArtist.textContent = 'Spotify • YouTube • Windows Media Player • VLC';
-          if (elements.mediaSessionTag) elements.mediaSessionTag.textContent = 'Audio Idle';
-        }
-
-        setMediaPlaying(isPlaying, m);
-        updateCompactDisplay();
-
-        if (m.isMuted !== undefined) {
-          if (elements.btnMediaMute) elements.btnMediaMute.classList.toggle('active', m.isMuted);
-          if (elements.btnToolMute) elements.btnToolMute.classList.toggle('active', m.isMuted);
-        }
+        applyMediaStatus(m);
       }
     } catch (_) {}
   }
@@ -1353,9 +1358,10 @@
         setTimeout(() => { if (elements.btnMediaPlay) elements.btnMediaPlay.style.transform = ''; }, 140);
 
         lastMediaKey = '';
-        await callNative('media_command', { action: 'playPause' });
-        setTimeout(updateMediaStatus, 120);
-        setTimeout(updateMediaStatus, 350);
+        const res = await callNative('media_command', { action: 'playPause' });
+        if (res && res.media) {
+          applyMediaStatus(res.media);
+        }
       });
     }
 
@@ -1369,15 +1375,19 @@
         if (elements.compactSubtext) elements.compactSubtext.style.opacity = '0.55';
 
         lastMediaKey = '';
-        await callNative('media_command', { action: 'next' });
+        const res = await callNative('media_command', { action: 'next' });
+        if (res && res.media) {
+          applyMediaStatus(res.media);
+        }
 
+        setTimeout(updateMediaStatus, 100);
+        setTimeout(updateMediaStatus, 250);
+        setTimeout(updateMediaStatus, 500);
         setTimeout(() => {
           updateMediaStatus();
           if (elements.mediaTitle) elements.mediaTitle.style.opacity = '1';
           if (elements.compactSubtext) elements.compactSubtext.style.opacity = '1';
-        }, 150);
-        setTimeout(updateMediaStatus, 450);
-        setTimeout(updateMediaStatus, 900);
+        }, 800);
       });
     }
 
@@ -1391,15 +1401,19 @@
         if (elements.compactSubtext) elements.compactSubtext.style.opacity = '0.55';
 
         lastMediaKey = '';
-        await callNative('media_command', { action: 'prev' });
+        const res = await callNative('media_command', { action: 'prev' });
+        if (res && res.media) {
+          applyMediaStatus(res.media);
+        }
 
+        setTimeout(updateMediaStatus, 100);
+        setTimeout(updateMediaStatus, 250);
+        setTimeout(updateMediaStatus, 500);
         setTimeout(() => {
           updateMediaStatus();
           if (elements.mediaTitle) elements.mediaTitle.style.opacity = '1';
           if (elements.compactSubtext) elements.compactSubtext.style.opacity = '1';
-        }, 150);
-        setTimeout(updateMediaStatus, 450);
-        setTimeout(updateMediaStatus, 900);
+        }, 800);
       });
     }
 
@@ -1853,9 +1867,9 @@
       }
     } catch (_) {}
 
-    // 5. Periodic stats updates (rapid 250ms for smooth zero-delay media feedback)
+    // 5. Periodic stats updates (rapid 120ms for buttery-smooth zero-delay media feedback)
     setInterval(updateSystemStats, 2000);
-    setInterval(updateMediaStatus, 250);
+    setInterval(updateMediaStatus, 120);
     updateSystemStats();
     updateMediaStatus();
   }

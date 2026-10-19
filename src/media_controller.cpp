@@ -53,7 +53,7 @@ void MediaController::WorkerLoop() {
     while (m_running.load()) {
         UpdateStatusInternal();
 
-        for (int i = 0; i < 35 && m_running.load(); ++i) {
+        for (int i = 0; i < 10 && m_running.load(); ++i) {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
     }
@@ -87,11 +87,13 @@ bool MediaController::PlayPause() {
         std::lock_guard<std::mutex> lock(m_statusMutex);
         m_cachedStatus.isPlaying = !m_cachedStatus.isPlaying;
         if (m_cachedStatus.isPlaying) {
-            m_cachedStatus.statusText = "Playing in " + (m_cachedStatus.appName.empty() ? "System Audio" : m_cachedStatus.appName);
+            m_userExplicitPaused = false;
             m_lastAudioPeakTick = GetTickCount64();
+            m_cachedStatus.statusText = "Playing in " + (m_cachedStatus.appName.empty() ? "System Audio" : m_cachedStatus.appName);
         } else {
-            m_cachedStatus.statusText = (m_cachedStatus.appName.empty() ? "Audio" : m_cachedStatus.appName) + " (Paused)";
+            m_userExplicitPaused = true;
             m_lastAudioPeakTick = 0;
+            m_cachedStatus.statusText = (m_cachedStatus.appName.empty() ? "Audio" : m_cachedStatus.appName) + " (Paused)";
         }
     }
     return true;
@@ -100,12 +102,24 @@ bool MediaController::PlayPause() {
 bool MediaController::NextTrack() {
     SendMediaKey(VK_MEDIA_NEXT_TRACK);
     m_lastFullHuntTick = 0;
+    {
+        std::lock_guard<std::mutex> lock(m_statusMutex);
+        m_cachedStatus.isPlaying = true;
+        m_userExplicitPaused = false;
+        m_lastAudioPeakTick = GetTickCount64();
+    }
     return true;
 }
 
 bool MediaController::PrevTrack() {
     SendMediaKey(VK_MEDIA_PREV_TRACK);
     m_lastFullHuntTick = 0;
+    {
+        std::lock_guard<std::mutex> lock(m_statusMutex);
+        m_cachedStatus.isPlaying = true;
+        m_userExplicitPaused = false;
+        m_lastAudioPeakTick = GetTickCount64();
+    }
     return true;
 }
 
@@ -541,8 +555,8 @@ void MediaController::UpdateStatusInternal() {
     }
 
     ULONGLONG now = GetTickCount64();
-    // If not found in cache, only run full OS EnumWindows hunt if sound is active or throttled interval (2.5s)
-    if (!huntFound && (status.peakLevel > 0.0005f || (now - m_lastFullHuntTick >= 2500))) {
+    // If not found in cache, only run full OS EnumWindows hunt if sound is active or throttled interval (1.0s)
+    if (!huntFound && (status.peakLevel > 0.0003f || (now - m_lastFullHuntTick >= 1000))) {
         MediaWindowHunt hunt;
         EnumWindows(HuntMediaWindowsProc, reinterpret_cast<LPARAM>(&hunt));
         m_lastFullHuntTick = now;
@@ -563,18 +577,28 @@ void MediaController::UpdateStatusInternal() {
         if (!huntArtist.empty()) status.artist = huntArtist;
     }
 
-    // Determine actual playback status with sensitive audio threshold and active session detection
-    if (status.peakLevel > 0.0001f || hasActiveStreamingSession) {
+    if (hasActiveStreamingSession) {
+        status.hasActiveSession = true;
+    }
+
+    // Determine actual playback status based on audio meter and explicit user state
+    bool isAudioPeakActive = (status.peakLevel > 0.0003f);
+
+    if (isAudioPeakActive) {
         m_lastAudioPeakTick = now;
+        m_userExplicitPaused = false;
         status.isPlaying = true;
         if (!status.hasActiveSession) {
             status.hasActiveSession = true;
             status.appName = "Audio";
             status.title = "System Audio";
         }
+    } else if (m_userExplicitPaused) {
+        // Explicit pause by user is strictly honored
+        status.isPlaying = false;
     } else {
-        // Retain playing state for 2.5s to prevent brief silent gap flickering
-        if (now - m_lastAudioPeakTick < 2500) {
+        // Retain playing state for 1.2s to prevent brief silent gap flickering
+        if (m_lastAudioPeakTick > 0 && (now - m_lastAudioPeakTick < 1200)) {
             status.isPlaying = true;
         } else {
             status.isPlaying = false;
