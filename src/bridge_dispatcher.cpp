@@ -185,7 +185,7 @@ std::string BridgeDispatcher::DispatchMessage(const std::string& rawJson) {
         else if (command == "get_app_info") {
             response["success"] = true;
             response["appName"] = "K2 Dynamic Island";
-            response["version"] = "1.1.0";
+            response["version"] = "1.1.1";
             response["arch"] = "x64";
             response["dataDirectory"] = Utf16ToUtf8(StorageManager::Instance().GetAppDataDirectory());
         }
@@ -287,7 +287,7 @@ std::string BridgeDispatcher::DispatchMessage(const std::string& rawJson) {
                 {"autoCheckUpdates", s.autoCheckUpdates},
                 {"autoDownloadUpdates", s.autoDownloadUpdates},
                 {"lastUpdateCheck", s.lastUpdateCheck},
-                {"appVersion", "1.1.0"}
+                {"appVersion", "1.1.1"}
             };
         }
         else if (command == "save_settings") {

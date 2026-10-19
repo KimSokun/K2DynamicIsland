@@ -129,10 +129,12 @@ bool AppWindow::Create() {
         int workWidth = mi.rcWork.right - mi.rcWork.left;
         posX = mi.rcWork.left + (workWidth - physWidth) / 2;
         posY = mi.rcWork.top + ScaleForDpi(12, initialDpi);
+        K2::Log("AppWindow::Create: Monitor workWidth=" + std::to_string(workWidth) + " physWidth=" + std::to_string(physWidth) + " -> posX=" + std::to_string(posX) + " posY=" + std::to_string(posY));
     } else {
         int screenW = GetSystemMetrics(SM_CXSCREEN);
         posX = (screenW - physWidth) / 2;
         posY = ScaleForDpi(12, initialDpi);
+        K2::Log("AppWindow::Create: Fallback screenW=" + std::to_string(screenW) + " physWidth=" + std::to_string(physWidth) + " -> posX=" + std::to_string(posX) + " posY=" + std::to_string(posY));
     }
 
     bool forceRecenter = (wcsstr(GetCommandLineW(), L"--recenter") != nullptr);
@@ -141,13 +143,22 @@ bool AppWindow::Create() {
         if (MonitorFromPoint(ptCheck, MONITOR_DEFAULTTONULL) != NULL) {
             posX = settings.positionX;
             posY = settings.positionY;
+            K2::Log("AppWindow::Create: Restoring user custom dragged position: posX=" + std::to_string(posX) + " posY=" + std::to_string(posY));
+        } else {
+            // Out-of-bounds on current display (e.g. laptop disconnected from external monitor) -> Re-center
+            settings.positionX = -1;
+            settings.positionY = -1;
+            StorageManager::Instance().SaveSettings(settings);
+            K2::Log("AppWindow::Create: Coordinates out-of-bounds, reset to dynamic center: posX=" + std::to_string(posX));
         }
-    }
-
-    if (forceRecenter || settings.positionX < 0) {
-        settings.positionX = posX;
-        settings.positionY = posY;
-        StorageManager::Instance().SaveSettings(settings);
+    } else {
+        // Auto-center default: dynamically position in middle of active screen
+        settings.positionX = -1;
+        settings.positionY = -1;
+        if (forceRecenter) {
+            StorageManager::Instance().SaveSettings(settings);
+        }
+        K2::Log("AppWindow::Create: Dynamic auto-centering applied: posX=" + std::to_string(posX) + " posY=" + std::to_string(posY));
     }
 
     DWORD exStyle = WS_EX_TOOLWINDOW;
@@ -515,10 +526,10 @@ void AppWindow::RecenterWindow() {
     SetWindowPos(m_hWnd, m_alwaysOnTop ? HWND_TOPMOST : HWND_NOTOPMOST,
         newX, newY, curW, curH, SWP_SHOWWINDOW | SWP_NOACTIVATE);
 
-    // Save centered position so restart preserves it
+    // Save centered position as dynamic auto-center (-1) so any monitor resolution or laptop change stays centered
     AppSettings s = StorageManager::Instance().LoadSettings();
-    s.positionX = newX;
-    s.positionY = newY;
+    s.positionX = -1;
+    s.positionY = -1;
     s.alwaysOnTop = m_alwaysOnTop;
     StorageManager::Instance().SaveSettings(s);
 }

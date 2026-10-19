@@ -2,6 +2,7 @@
 #include <commctrl.h>
 #include <shlobj.h>
 #include <shlwapi.h>
+#include <shldisp.h>
 #include <string>
 #include <vector>
 
@@ -98,26 +99,75 @@ static bool CreateShortcut(const std::wstring& targetExe, const std::wstring& li
     return SUCCEEDED(hr);
 }
 
-static void LaunchAppDetached(const std::wstring& exePath, const std::wstring& workDir, const std::wstring& args = L"") {
-    // Launching via Windows Explorer executes the application in the desktop shell session,
-    // completely decoupled from caller processes and Job objects (e.g. PowerShell Start-Process -Wait).
-    std::wstring explorerArgs = L"\"" + exePath + L"\"";
-    if (!args.empty()) {
-        explorerArgs += L" " + args;
-    }
+static bool LaunchViaShellCOM(const std::wstring& exePath, const std::wstring& workDir, const std::wstring& args) {
+    HRESULT hrCo = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+    IShellDispatch2* pShell = nullptr;
+    HRESULT hr = CoCreateInstance(CLSID_Shell, NULL, CLSCTX_INPROC_SERVER | CLSCTX_LOCAL_SERVER, IID_PPV_ARGS(&pShell));
+    if (SUCCEEDED(hr) && pShell) {
+        BSTR bstrFile = SysAllocString(exePath.c_str());
+        VARIANT vArgs; VariantInit(&vArgs);
+        if (!args.empty()) {
+            vArgs.vt = VT_BSTR;
+            vArgs.bstrVal = SysAllocString(args.c_str());
+        }
+        VARIANT vDir; VariantInit(&vDir);
+        if (!workDir.empty()) {
+            vDir.vt = VT_BSTR;
+            vDir.bstrVal = SysAllocString(workDir.c_str());
+        }
+        VARIANT vOp; VariantInit(&vOp);
+        vOp.vt = VT_BSTR;
+        vOp.bstrVal = SysAllocString(L"open");
+        VARIANT vShow; VariantInit(&vShow);
+        vShow.vt = VT_I4;
+        vShow.lVal = SW_SHOWNORMAL;
 
-    SHELLEXECUTEINFOW sei = {};
-    sei.cbSize = sizeof(sei);
-    sei.fMask = SEE_MASK_NOZONECHECKS | SEE_MASK_FLAG_NO_UI;
-    sei.lpVerb = L"open";
-    sei.lpFile = L"explorer.exe";
-    sei.lpParameters = explorerArgs.c_str();
-    sei.nShow = SW_SHOWNORMAL;
-    if (ShellExecuteExW(&sei)) {
+        hr = pShell->ShellExecute(bstrFile, vArgs, vDir, vOp, vShow);
+
+        SysFreeString(bstrFile);
+        VariantClear(&vArgs);
+        VariantClear(&vDir);
+        VariantClear(&vOp);
+        VariantClear(&vShow);
+        pShell->Release();
+        if (SUCCEEDED(hrCo)) CoUninitialize();
+        return SUCCEEDED(hr);
+    }
+    if (SUCCEEDED(hrCo)) CoUninitialize();
+    return false;
+}
+
+static void LaunchApp(const std::wstring& exePath, const std::wstring& workDir, const std::wstring& args = L"") {
+    // 1. Try launching through Explorer's Shell COM interface.
+    // This executes the process directly in the user's desktop shell session,
+    // completely detached from the installer process, console, and Job Objects (e.g. PowerShell Start-Process -Wait).
+    if (LaunchViaShellCOM(exePath, workDir, args)) {
         return;
     }
 
-    // Direct fallback
+    // 2. Direct decoupled process creation fallback
+    STARTUPINFOW si = { sizeof(si) };
+    PROCESS_INFORMATION pi = {};
+    std::wstring cmdLine = L"\"" + exePath + L"\"";
+    if (!args.empty()) {
+        cmdLine += L" " + args;
+    }
+    std::vector<wchar_t> cmdBuf(cmdLine.begin(), cmdLine.end());
+    cmdBuf.push_back(L'\0');
+
+    // Launch directly decoupled from parent process. Try with CREATE_BREAKAWAY_FROM_JOB, then fallback to 0.
+    if (CreateProcessW(NULL, cmdBuf.data(), NULL, NULL, FALSE, CREATE_BREAKAWAY_FROM_JOB, NULL, workDir.c_str(), &si, &pi)) {
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+        return;
+    }
+    if (CreateProcessW(NULL, cmdBuf.data(), NULL, NULL, FALSE, 0, NULL, workDir.c_str(), &si, &pi)) {
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+        return;
+    }
+
+    // Direct ShellExecute fallback (directly invoking the executable, NEVER explorer.exe)
     ShellExecuteW(NULL, L"open", exePath.c_str(), args.empty() ? NULL : args.c_str(), workDir.c_str(), SW_SHOWNORMAL);
 }
 
@@ -266,7 +316,7 @@ static DWORD WINAPI InstallThreadProc(LPVOID lpParam) {
     const wchar_t* uninstSubKey = L"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\K2DynamicIsland";
     if (RegCreateKeyExW(HKEY_CURRENT_USER, uninstSubKey, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hUninstKey, NULL) == ERROR_SUCCESS) {
         const wchar_t* appName = L"K2 Dynamic Island";
-        const wchar_t* appVer = L"1.1.0";
+        const wchar_t* appVer = L"1.1.1";
         const wchar_t* publisher = L"K2 Studio";
         std::wstring uninstCmd = L"\"" + ctx->installDir + L"\\Uninstall.exe\"";
         std::wstring iconPath = L"\"" + targetExe + L"\",0";
@@ -308,7 +358,42 @@ static DWORD WINAPI InstallThreadProc(LPVOID lpParam) {
         }
     }
 
-    // 8. Finish
+    // 8. Reset any stale coordinate locks in settings.json to -1 (dynamic center mode)
+    if (appDataPath[0] != L'\0' || SHGetFolderPathW(NULL, CSIDL_APPDATA, NULL, 0, appDataPath) == S_OK) {
+        std::wstring settingsFile = std::wstring(appDataPath) + L"\\K2DynamicIsland\\settings.json";
+        HANDLE hSetFile = CreateFileW(settingsFile.c_str(), GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+        if (hSetFile != INVALID_HANDLE_VALUE) {
+            DWORD fileSize = GetFileSize(hSetFile, NULL);
+            if (fileSize > 0 && fileSize < 65536) {
+                std::vector<char> buf(fileSize + 1, 0);
+                DWORD readBytes = 0;
+                if (ReadFile(hSetFile, buf.data(), fileSize, &readBytes, NULL)) {
+                    std::string content(buf.data());
+                    size_t posXPos = content.find("\"positionX\":");
+                    if (posXPos != std::string::npos) {
+                        size_t endX = content.find_first_of(",\r\n}", posXPos);
+                        if (endX != std::string::npos) {
+                            content.replace(posXPos, endX - posXPos, "\"positionX\": -1");
+                        }
+                    }
+                    size_t posYPos = content.find("\"positionY\":");
+                    if (posYPos != std::string::npos) {
+                        size_t endY = content.find_first_of(",\r\n}", posYPos);
+                        if (endY != std::string::npos) {
+                            content.replace(posYPos, endY - posYPos, "\"positionY\": -1");
+                        }
+                    }
+                    SetFilePointer(hSetFile, 0, NULL, FILE_BEGIN);
+                    DWORD written = 0;
+                    WriteFile(hSetFile, content.c_str(), (DWORD)content.length(), &written, NULL);
+                    SetEndOfFile(hSetFile);
+                }
+            }
+            CloseHandle(hSetFile);
+        }
+    }
+
+    // 9. Finish
     PostMessageW(ctx->hWnd, WM_INSTALL_PROGRESS, 100, (LPARAM)L"Installation completed successfully!");
     PostMessageW(ctx->hWnd, WM_INSTALL_COMPLETE, 0, 0);
     return 0;
@@ -441,7 +526,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                 // Launch app if checked
                 if (g_ctx.launchAfterInstall) {
                     std::wstring targetExe = g_ctx.installDir + L"\\K2DynamicIsland.exe";
-                    LaunchAppDetached(targetExe, g_ctx.installDir, L"--recenter");
+                    LaunchApp(targetExe, g_ctx.installDir, L"--recenter");
                 }
                 DestroyWindow(hWnd);
                 return 0;
@@ -553,7 +638,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         InstallThreadProc(&g_ctx);
         if (!noRun) {
             std::wstring targetExe = g_ctx.installDir + L"\\K2DynamicIsland.exe";
-            LaunchAppDetached(targetExe, g_ctx.installDir);
+            LaunchApp(targetExe, g_ctx.installDir, L"--recenter");
         }
         ExitProcess(0);
     }
