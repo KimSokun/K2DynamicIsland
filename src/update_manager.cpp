@@ -329,6 +329,8 @@ void UpdateManager::WorkerCheckForUpdates(bool manual) {
         return;
     }
 
+    WinHttpSetTimeouts(hSession, 4000, 4000, 6000, 6000);
+
     // Connect to GitHub API
     HINTERNET hConnect = WinHttpConnect(hSession, L"api.github.com", INTERNET_DEFAULT_HTTPS_PORT, 0);
     if (!hConnect) {

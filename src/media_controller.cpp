@@ -69,16 +69,6 @@ MediaStatus MediaController::GetStatus() {
 }
 
 void MediaController::SendMediaKey(BYTE vkCode) {
-    DWORD cmd = 0;
-    if (vkCode == VK_MEDIA_PLAY_PAUSE) cmd = APPCOMMAND_MEDIA_PLAY_PAUSE;
-    else if (vkCode == VK_MEDIA_NEXT_TRACK) cmd = APPCOMMAND_MEDIA_NEXTTRACK;
-    else if (vkCode == VK_MEDIA_PREV_TRACK) cmd = APPCOMMAND_MEDIA_PREVIOUSTRACK;
-    else if (vkCode == VK_VOLUME_MUTE) cmd = APPCOMMAND_VOLUME_MUTE;
-
-    if (cmd != 0 && m_cachedMediaHwnd && IsWindow(m_cachedMediaHwnd)) {
-        PostMessageW(m_cachedMediaHwnd, WM_APPCOMMAND, 0, MAKELPARAM(0, cmd));
-    }
-
     INPUT inputs[2] = {};
     inputs[0].type = INPUT_KEYBOARD;
     inputs[0].ki.wVk = vkCode;
@@ -109,11 +99,13 @@ bool MediaController::PlayPause() {
 
 bool MediaController::NextTrack() {
     SendMediaKey(VK_MEDIA_NEXT_TRACK);
+    m_lastFullHuntTick = 0;
     return true;
 }
 
 bool MediaController::PrevTrack() {
     SendMediaKey(VK_MEDIA_PREV_TRACK);
+    m_lastFullHuntTick = 0;
     return true;
 }
 

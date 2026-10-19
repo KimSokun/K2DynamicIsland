@@ -280,7 +280,8 @@
       modalNotesVersion: document.getElementById('modal-notes-version'),
       releaseNotesBody: document.getElementById('release-notes-body'),
       modalNotesClose: document.getElementById('modal-notes-close'),
-      modalNotesInstall: document.getElementById('modal-notes-install')
+      modalNotesInstall: document.getElementById('modal-notes-install'),
+      aboutAppVersion: document.getElementById('about-app-version')
     };
   }
 
@@ -642,11 +643,17 @@
       elements.updateStatusIcon.classList.toggle('error', updateState === 'error');
     }
 
+    if (elements.aboutAppVersion && currentVersion) {
+      elements.aboutAppVersion.textContent = `v${currentVersion} (x64 Release)`;
+    }
+
     if (elements.btnCheckUpdates) {
       elements.btnCheckUpdates.classList.toggle('hidden', updateState === 'checking' || updateState === 'downloading');
     }
     if (elements.btnDownloadUpdate) {
       elements.btnDownloadUpdate.classList.toggle('hidden', updateState !== 'available');
+      const span = elements.btnDownloadUpdate.querySelector('span');
+      if (span) span.textContent = latestVersion ? `Update to v${latestVersion}` : 'Update Now';
     }
     if (elements.btnInstallUpdate) {
       elements.btnInstallUpdate.classList.toggle('hidden', updateState !== 'ready_to_install');
@@ -1327,7 +1334,7 @@
       });
     }
 
-    // 7. Media Controls (Optimistic & Responsive Feedback)
+    // 7. Media Controls (Optimistic & Zero-Delay Feedback)
     if (elements.btnMediaPlay) {
       elements.btnMediaPlay.addEventListener('click', async (e) => {
         e.stopPropagation();
@@ -1347,7 +1354,8 @@
 
         lastMediaKey = '';
         await callNative('media_command', { action: 'playPause' });
-        setTimeout(updateMediaStatus, 400);
+        setTimeout(updateMediaStatus, 120);
+        setTimeout(updateMediaStatus, 350);
       });
     }
 
@@ -1356,8 +1364,20 @@
         e.stopPropagation();
         elements.btnMediaNext.style.transform = 'scale(0.88) translateX(2px)';
         setTimeout(() => { if (elements.btnMediaNext) elements.btnMediaNext.style.transform = ''; }, 140);
+
+        if (elements.mediaTitle) elements.mediaTitle.style.opacity = '0.55';
+        if (elements.compactSubtext) elements.compactSubtext.style.opacity = '0.55';
+
+        lastMediaKey = '';
         await callNative('media_command', { action: 'next' });
-        setTimeout(updateMediaStatus, 400);
+
+        setTimeout(() => {
+          updateMediaStatus();
+          if (elements.mediaTitle) elements.mediaTitle.style.opacity = '1';
+          if (elements.compactSubtext) elements.compactSubtext.style.opacity = '1';
+        }, 150);
+        setTimeout(updateMediaStatus, 450);
+        setTimeout(updateMediaStatus, 900);
       });
     }
 
@@ -1366,8 +1386,20 @@
         e.stopPropagation();
         elements.btnMediaPrev.style.transform = 'scale(0.88) translateX(-2px)';
         setTimeout(() => { if (elements.btnMediaPrev) elements.btnMediaPrev.style.transform = ''; }, 140);
+
+        if (elements.mediaTitle) elements.mediaTitle.style.opacity = '0.55';
+        if (elements.compactSubtext) elements.compactSubtext.style.opacity = '0.55';
+
+        lastMediaKey = '';
         await callNative('media_command', { action: 'prev' });
-        setTimeout(updateMediaStatus, 400);
+
+        setTimeout(() => {
+          updateMediaStatus();
+          if (elements.mediaTitle) elements.mediaTitle.style.opacity = '1';
+          if (elements.compactSubtext) elements.compactSubtext.style.opacity = '1';
+        }, 150);
+        setTimeout(updateMediaStatus, 450);
+        setTimeout(updateMediaStatus, 900);
       });
     }
 
@@ -1781,6 +1813,12 @@
         );
         // Apply loaded Island Animation template
         setIslandAnimation(state.settings.islandAnimation || 'spiderverse', false);
+        if (elements.aboutAppVersion && state.settings.appVersion) {
+          elements.aboutAppVersion.textContent = `v${state.settings.appVersion} (x64 Release)`;
+        }
+        if (elements.updateStatusMsg && (!latestUpdateData || latestUpdateData.state === 'idle')) {
+          elements.updateStatusMsg.textContent = `Running latest release (v${state.settings.appVersion || '1.1.5'})`;
+        }
       } else {
         applyTheme('dark', 'glass', 'preset1');
         setIslandAnimation('spiderverse', false);
@@ -1815,9 +1853,9 @@
       }
     } catch (_) {}
 
-    // 5. Periodic stats updates
+    // 5. Periodic stats updates (rapid 250ms for smooth zero-delay media feedback)
     setInterval(updateSystemStats, 2000);
-    setInterval(updateMediaStatus, 800);
+    setInterval(updateMediaStatus, 250);
     updateSystemStats();
     updateMediaStatus();
   }
