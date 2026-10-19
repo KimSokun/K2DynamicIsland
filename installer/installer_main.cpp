@@ -98,6 +98,29 @@ static bool CreateShortcut(const std::wstring& targetExe, const std::wstring& li
     return SUCCEEDED(hr);
 }
 
+static void LaunchAppDetached(const std::wstring& exePath, const std::wstring& workDir, const std::wstring& args = L"") {
+    // Launching via Windows Explorer executes the application in the desktop shell session,
+    // completely decoupled from caller processes and Job objects (e.g. PowerShell Start-Process -Wait).
+    std::wstring explorerArgs = L"\"" + exePath + L"\"";
+    if (!args.empty()) {
+        explorerArgs += L" " + args;
+    }
+
+    SHELLEXECUTEINFOW sei = {};
+    sei.cbSize = sizeof(sei);
+    sei.fMask = SEE_MASK_NOZONECHECKS | SEE_MASK_FLAG_NO_UI;
+    sei.lpVerb = L"open";
+    sei.lpFile = L"explorer.exe";
+    sei.lpParameters = explorerArgs.c_str();
+    sei.nShow = SW_SHOWNORMAL;
+    if (ShellExecuteExW(&sei)) {
+        return;
+    }
+
+    // Direct fallback
+    ShellExecuteW(NULL, L"open", exePath.c_str(), args.empty() ? NULL : args.c_str(), workDir.c_str(), SW_SHOWNORMAL);
+}
+
 static DWORD WINAPI InstallThreadProc(LPVOID lpParam) {
     auto* ctx = static_cast<InstallContext*>(lpParam);
     HWND hProgress = GetDlgItem(ctx->hWnd, IDC_PROGRESS);
@@ -105,28 +128,34 @@ static DWORD WINAPI InstallThreadProc(LPVOID lpParam) {
 
     // 1. Preparing
     PostMessageW(ctx->hWnd, WM_INSTALL_PROGRESS, 10, (LPARAM)L"Preparing installation...");
-    Sleep(250);
+    if (ctx->hWnd) Sleep(100);
 
     // Forcibly terminate any running instance of K2DynamicIsland.exe so files and mutex are freed
     PostMessageW(ctx->hWnd, WM_INSTALL_PROGRESS, 15, (LPARAM)L"Stopping running application instance...");
-    system("taskkill /f /im K2DynamicIsland.exe 2>nul");
-    Sleep(600);
+    HWND hExist = FindWindowW(L"K2DynamicIslandWindowClass", L"K2 Dynamic Island");
+    if (hExist) {
+        PostMessageW(hExist, WM_CLOSE, 0, 0);
+        system("taskkill /f /im K2DynamicIsland.exe 2>nul");
+        if (ctx->hWnd) Sleep(200);
+    }
 
-    // Clear stale WebView2 cache synchronously before extraction so there are no file locks or background race conditions
+    // Clear stale WebView2 cache synchronously if present before extraction
     wchar_t appDataPath[MAX_PATH] = {};
     if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_APPDATA, NULL, 0, appDataPath))) {
         std::wstring cacheDir = std::wstring(appDataPath) + L"\\K2DynamicIsland\\WebView2Cache";
-        std::wstring rmCmd = L"/c rmdir /s /q \"" + cacheDir + L"\" 2>nul";
-        SHELLEXECUTEINFOW rmSei = {};
-        rmSei.cbSize = sizeof(rmSei);
-        rmSei.fMask = SEE_MASK_NOCLOSEPROCESS;
-        rmSei.lpVerb = L"open";
-        rmSei.lpFile = L"cmd.exe";
-        rmSei.lpParameters = rmCmd.c_str();
-        rmSei.nShow = SW_HIDE;
-        if (ShellExecuteExW(&rmSei) && rmSei.hProcess) {
-            WaitForSingleObject(rmSei.hProcess, 5000);
-            CloseHandle(rmSei.hProcess);
+        if (GetFileAttributesW(cacheDir.c_str()) != INVALID_FILE_ATTRIBUTES) {
+            std::wstring rmCmd = L"/c rmdir /s /q \"" + cacheDir + L"\" 2>nul";
+            SHELLEXECUTEINFOW rmSei = {};
+            rmSei.cbSize = sizeof(rmSei);
+            rmSei.fMask = SEE_MASK_NOCLOSEPROCESS;
+            rmSei.lpVerb = L"open";
+            rmSei.lpFile = L"cmd.exe";
+            rmSei.lpParameters = rmCmd.c_str();
+            rmSei.nShow = SW_HIDE;
+            if (ShellExecuteExW(&rmSei) && rmSei.hProcess) {
+                WaitForSingleObject(rmSei.hProcess, 3000);
+                CloseHandle(rmSei.hProcess);
+            }
         }
     }
 
@@ -412,7 +441,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                 // Launch app if checked
                 if (g_ctx.launchAfterInstall) {
                     std::wstring targetExe = g_ctx.installDir + L"\\K2DynamicIsland.exe";
-                    ShellExecuteW(NULL, L"open", targetExe.c_str(), L"--recenter", g_ctx.installDir.c_str(), SW_SHOWNORMAL);
+                    LaunchAppDetached(targetExe, g_ctx.installDir, L"--recenter");
                 }
                 DestroyWindow(hWnd);
                 return 0;
@@ -524,9 +553,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         InstallThreadProc(&g_ctx);
         if (!noRun) {
             std::wstring targetExe = g_ctx.installDir + L"\\K2DynamicIsland.exe";
-            ShellExecuteW(NULL, L"open", targetExe.c_str(), NULL, g_ctx.installDir.c_str(), SW_SHOWNORMAL);
+            LaunchAppDetached(targetExe, g_ctx.installDir);
         }
-        return 0;
+        ExitProcess(0);
     }
 
     // Graphical Setup Wizard Window
