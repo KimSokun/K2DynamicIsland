@@ -137,12 +137,12 @@ bool WebViewManager::Initialize(const std::wstring& htmlPath) {
                         K2::Log("Transparent background configured");
                     }
 
-                    // Disable WebView2 default external drop so native OLE IDropTarget receives file drops
+                    // Enable WebView2 external drop so HTML5 and native OLE drag & drop receive files
                     ICoreWebView2Controller4* controller4 = nullptr;
                     if (SUCCEEDED(m_controller->QueryInterface(IID_ICoreWebView2Controller4, (void**)&controller4)) && controller4) {
-                        controller4->put_AllowExternalDrop(FALSE);
+                        controller4->put_AllowExternalDrop(TRUE);
                         controller4->Release();
-                        K2::Log("controller4->put_AllowExternalDrop(FALSE) applied");
+                        K2::Log("controller4->put_AllowExternalDrop(TRUE) applied");
                     }
 
                     // Sizing

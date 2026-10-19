@@ -186,6 +186,7 @@
 
       // Files
       fileDropZone: document.getElementById('file-drop-zone'),
+      inputBrowseFiles: document.getElementById('input-browse-files'),
       filesList: document.getElementById('files-list'),
       filesCount: document.getElementById('files-count'),
       btnCopyAllPaths: document.getElementById('btn-copy-all-paths'),
@@ -1339,6 +1340,35 @@
       });
     }
 
+    if (elements.fileDropZone && elements.inputBrowseFiles) {
+      elements.fileDropZone.addEventListener('click', (e) => {
+        if (e.target !== elements.inputBrowseFiles) {
+          elements.inputBrowseFiles.click();
+        }
+      });
+      elements.inputBrowseFiles.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files.length > 0) {
+          const dropped = [];
+          for (let i = 0; i < e.target.files.length; i++) {
+            const f = e.target.files[i];
+            dropped.push({
+              name: f.name,
+              path: f.name,
+              extension: f.name.includes('.') ? f.name.substring(f.name.lastIndexOf('.')) : '',
+              size: f.size || 0,
+              isDirectory: false
+            });
+          }
+          if (dropped.length > 0) {
+            state.files = [...dropped, ...state.files];
+            renderFileList();
+            showToast(`${dropped.length} file(s) added`);
+          }
+        }
+        elements.inputBrowseFiles.value = '';
+      });
+    }
+
     // 7. Media Controls (Optimistic & Zero-Delay Feedback)
     if (elements.btnMediaPlay) {
       elements.btnMediaPlay.addEventListener('click', async (e) => {
@@ -1375,19 +1405,19 @@
         if (elements.compactSubtext) elements.compactSubtext.style.opacity = '0.55';
 
         lastMediaKey = '';
-        const res = await callNative('media_command', { action: 'next' });
-        if (res && res.media) {
-          applyMediaStatus(res.media);
+        await callNative('media_command', { action: 'next' });
+        if (elements.iconPlayPause) {
+          elements.iconPlayPause.innerHTML = '<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>';
         }
 
-        setTimeout(updateMediaStatus, 100);
-        setTimeout(updateMediaStatus, 250);
+        setTimeout(updateMediaStatus, 120);
+        setTimeout(updateMediaStatus, 280);
         setTimeout(updateMediaStatus, 500);
         setTimeout(() => {
           updateMediaStatus();
           if (elements.mediaTitle) elements.mediaTitle.style.opacity = '1';
           if (elements.compactSubtext) elements.compactSubtext.style.opacity = '1';
-        }, 800);
+        }, 850);
       });
     }
 
@@ -1401,19 +1431,19 @@
         if (elements.compactSubtext) elements.compactSubtext.style.opacity = '0.55';
 
         lastMediaKey = '';
-        const res = await callNative('media_command', { action: 'prev' });
-        if (res && res.media) {
-          applyMediaStatus(res.media);
+        await callNative('media_command', { action: 'prev' });
+        if (elements.iconPlayPause) {
+          elements.iconPlayPause.innerHTML = '<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>';
         }
 
-        setTimeout(updateMediaStatus, 100);
-        setTimeout(updateMediaStatus, 250);
+        setTimeout(updateMediaStatus, 120);
+        setTimeout(updateMediaStatus, 280);
         setTimeout(updateMediaStatus, 500);
         setTimeout(() => {
           updateMediaStatus();
           if (elements.mediaTitle) elements.mediaTitle.style.opacity = '1';
           if (elements.compactSubtext) elements.compactSubtext.style.opacity = '1';
-        }, 800);
+        }, 850);
       });
     }
 
@@ -1737,17 +1767,23 @@
       });
     }
 
-    // Drag & drop visual feedback
-    window.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      if (elements.capsuleCompact) elements.capsuleCompact.classList.add('drag-over');
-      if (elements.fileDropZone) elements.fileDropZone.classList.add('dragover');
+    ['dragenter', 'dragover'].forEach(evt => {
+      window.addEventListener(evt, (e) => {
+        e.preventDefault();
+        if (e.dataTransfer) {
+          e.dataTransfer.dropEffect = 'copy';
+        }
+        if (elements.capsuleCompact) elements.capsuleCompact.classList.add('drag-over');
+        if (elements.fileDropZone) elements.fileDropZone.classList.add('dragover');
+      });
     });
 
-    window.addEventListener('dragleave', (e) => {
-      e.preventDefault();
-      if (elements.capsuleCompact) elements.capsuleCompact.classList.remove('drag-over');
-      if (elements.fileDropZone) elements.fileDropZone.classList.remove('dragover');
+    ['dragleave', 'dragend'].forEach(evt => {
+      window.addEventListener(evt, (e) => {
+        e.preventDefault();
+        if (elements.capsuleCompact) elements.capsuleCompact.classList.remove('drag-over');
+        if (elements.fileDropZone) elements.fileDropZone.classList.remove('dragover');
+      });
     });
 
     window.addEventListener('drop', (e) => {

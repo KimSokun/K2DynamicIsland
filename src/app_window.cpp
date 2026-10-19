@@ -242,6 +242,7 @@ bool AppWindow::Create() {
     });
 
     HookChildDropTargets();
+    SetTimer(m_hWnd, IDT_DROPTARGET_HOOK, 300, NULL);
 
     // Schedule background update check if enabled
     if (settings.autoCheckUpdates) {
@@ -304,7 +305,14 @@ LRESULT AppWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
     }
 
     case WM_TIMER:
-        if (wParam == IDT_UPDATE_CHECK) {
+        if (wParam == IDT_DROPTARGET_HOOK) {
+            HookChildDropTargets();
+            static int s_hookCount = 0;
+            if (++s_hookCount >= 12) {
+                KillTimer(m_hWnd, IDT_DROPTARGET_HOOK);
+            }
+            return 0;
+        } else if (wParam == IDT_UPDATE_CHECK) {
             KillTimer(m_hWnd, IDT_UPDATE_CHECK);
             AppSettings s = StorageManager::Instance().LoadSettings();
             if (s.autoCheckUpdates) {
@@ -409,9 +417,21 @@ LRESULT AppWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
     return DefWindowProcW(m_hWnd, msg, wParam, lParam);
 }
 
+static BOOL CALLBACK HookChildDropProc(HWND hChild, LPARAM lParam) {
+    IDropTarget* pTarget = reinterpret_cast<IDropTarget*>(lParam);
+    if (hChild && pTarget) {
+        RevokeDragDrop(hChild);
+        RegisterDragDrop(hChild, pTarget);
+        DragAcceptFiles(hChild, TRUE);
+    }
+    return TRUE;
+}
+
 void AppWindow::HookChildDropTargets() {
     if (!m_hWnd || !m_dropTarget) return;
     RegisterDragDrop(m_hWnd, m_dropTarget);
+    DragAcceptFiles(m_hWnd, TRUE);
+    EnumChildWindows(m_hWnd, HookChildDropProc, reinterpret_cast<LPARAM>(m_dropTarget));
 }
 
 void AppWindow::HandleDropFiles(HDROP hDrop) {

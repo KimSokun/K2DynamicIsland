@@ -764,6 +764,7 @@ body.bg-photo .compact-glass-tint {
   position: relative;
   overflow: hidden;
   margin-bottom: 10px;
+  cursor: pointer;
   transition: all 0.2s var(--ease-spring);
 }
 

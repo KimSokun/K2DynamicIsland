@@ -135,7 +135,8 @@
         <section id="view-files" class="tab-panel active" role="tabpanel" aria-labelledby="tab-files">
           
           <!-- Drop Area -->
-          <div class="modern-drop-area" id="file-drop-zone">
+          <div class="modern-drop-area" id="file-drop-zone" title="Drag and drop files here, or click to browse">
+            <input type="file" id="input-browse-files" multiple style="display: none;">
             <div class="drop-visual-glow"></div>
             <div class="drop-content">
               <div class="drop-icon-bubble">
@@ -147,7 +148,7 @@
               </div>
               <div class="drop-text-col">
                 <p class="drop-primary">Drag &amp; drop files or folders here</p>
-                <p class="drop-secondary">Instantly inspect exact Windows paths &bull; Safe &amp; non-destructive</p>
+                <p class="drop-secondary">Click to browse or drop files &bull; Safe &amp; non-destructive</p>
               </div>
             </div>
           </div>

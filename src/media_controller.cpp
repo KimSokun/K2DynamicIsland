@@ -68,17 +68,61 @@ MediaStatus MediaController::GetStatus() {
     return m_cachedStatus;
 }
 
+struct MediaWindowHunt {
+    HWND hWnd = nullptr;
+    std::string appName = "";
+    std::string title = "";
+    std::string artist = "";
+    bool found = false;
+};
+static BOOL CALLBACK HuntMediaWindowsProc(HWND hWnd, LPARAM lParam);
+
 void MediaController::SendMediaKey(BYTE vkCode) {
-    INPUT inputs[2] = {};
-    inputs[0].type = INPUT_KEYBOARD;
-    inputs[0].ki.wVk = vkCode;
-    inputs[0].ki.dwFlags = KEYEVENTF_EXTENDEDKEY;
+    DWORD cmd = 0;
+    if (vkCode == VK_MEDIA_PLAY_PAUSE) cmd = APPCOMMAND_MEDIA_PLAY_PAUSE;
+    else if (vkCode == VK_MEDIA_NEXT_TRACK) cmd = APPCOMMAND_MEDIA_NEXTTRACK;
+    else if (vkCode == VK_MEDIA_PREV_TRACK) cmd = APPCOMMAND_MEDIA_PREVIOUSTRACK;
+    else if (vkCode == VK_VOLUME_MUTE) cmd = APPCOMMAND_VOLUME_MUTE;
 
-    inputs[1].type = INPUT_KEYBOARD;
-    inputs[1].ki.wVk = vkCode;
-    inputs[1].ki.dwFlags = KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP;
+    // Refresh media target window if not cached or no longer valid
+    if (!m_cachedMediaHwnd || !IsWindow(m_cachedMediaHwnd)) {
+        MediaWindowHunt hunt;
+        EnumWindows(HuntMediaWindowsProc, reinterpret_cast<LPARAM>(&hunt));
+        if (hunt.found && hunt.hWnd) {
+            m_cachedMediaHwnd = hunt.hWnd;
+            m_cachedAppName = hunt.appName;
+        }
+    }
 
-    SendInput(2, inputs, sizeof(INPUT));
+    bool directSent = false;
+    if (cmd != 0 && m_cachedMediaHwnd && IsWindow(m_cachedMediaHwnd)) {
+        PostMessageW(m_cachedMediaHwnd, WM_APPCOMMAND, (WPARAM)m_cachedMediaHwnd, MAKELPARAM(0, cmd));
+        directSent = true;
+    }
+
+    // Prepare extended hardware scan code
+    WORD scanCode = (WORD)MapVirtualKeyW(vkCode, MAPVK_VK_TO_VSC);
+
+    // For Next & Prev: Send both WM_APPCOMMAND AND keybd_event/SendInput so all players (browser/desktop/system) respond
+    // For Play/Pause: If direct WM_APPCOMMAND was sent to target window, avoid duplicate toggle
+    if (!directSent || vkCode != VK_MEDIA_PLAY_PAUSE) {
+        INPUT inputs[2] = {};
+        inputs[0].type = INPUT_KEYBOARD;
+        inputs[0].ki.wVk = vkCode;
+        inputs[0].ki.wScan = scanCode;
+        inputs[0].ki.dwFlags = KEYEVENTF_EXTENDEDKEY;
+
+        inputs[1].type = INPUT_KEYBOARD;
+        inputs[1].ki.wVk = vkCode;
+        inputs[1].ki.wScan = scanCode;
+        inputs[1].ki.dwFlags = KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP;
+
+        SendInput(2, inputs, sizeof(INPUT));
+
+        // Legacy global media key broadcast fallback
+        keybd_event(vkCode, (BYTE)scanCode, KEYEVENTF_EXTENDEDKEY, 0);
+        keybd_event(vkCode, (BYTE)scanCode, KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP, 0);
+    }
 }
 
 bool MediaController::PlayPause() {
@@ -163,6 +207,7 @@ bool MediaController::ToggleMute() {
 
 struct WindowContext {
     DWORD pid = 0;
+    HWND hWnd = nullptr;
     std::wstring title = L"";
 };
 
@@ -177,6 +222,7 @@ static BOOL CALLBACK EnumMediaWindowsProc(HWND hWnd, LPARAM lParam) {
             std::wstring ws(buf);
             if (ws != L"Default IME" && ws != L"MSCTFIME UI" && ws != L"Chrome Legacy Window" && ws.find(L"GDI+") == std::wstring::npos) {
                 ctx->title = ws;
+                ctx->hWnd = hWnd;
                 return FALSE; // Stop enumeration once main title is found
             }
         }
@@ -268,14 +314,6 @@ static void ExtractTrackMetadata(const std::string& appExe, const std::wstring& 
     }
     status.appName = appDisplay;
 }
-
-struct MediaWindowHunt {
-    HWND hWnd = nullptr;
-    std::string appName = "";
-    std::string title = "";
-    std::string artist = "";
-    bool found = false;
-};
 
 static BOOL CALLBACK HuntMediaWindowsProc(HWND hWnd, LPARAM lParam) {
     auto* hunt = reinterpret_cast<MediaWindowHunt*>(lParam);
@@ -447,6 +485,10 @@ void MediaController::UpdateStatusInternal() {
                                         winCtx.pid = pid;
                                         EnumWindows(EnumMediaWindowsProc, reinterpret_cast<LPARAM>(&winCtx));
                                         wndTitle = winCtx.title;
+                                        if (winCtx.hWnd && IsWindow(winCtx.hWnd)) {
+                                            m_cachedMediaHwnd = winCtx.hWnd;
+                                            m_cachedAppName = rawExeName;
+                                        }
                                     }
                                     pSessionControl2->Release();
                                 }
