@@ -287,7 +287,7 @@ std::string BridgeDispatcher::DispatchMessage(const std::string& rawJson) {
                 {"autoCheckUpdates", s.autoCheckUpdates},
                 {"autoDownloadUpdates", s.autoDownloadUpdates},
                 {"lastUpdateCheck", s.lastUpdateCheck},
-                {"appVersion", "1.1.4"}
+                {"appVersion", "1.1.5"}
             };
         }
         else if (command == "save_settings") {

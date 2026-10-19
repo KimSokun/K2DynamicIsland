@@ -312,55 +312,6 @@ html, body {
   font-weight: 500;
 }
 
-/* Compact Leading Media Badge (iOS Style) */
-.compact-media-badge {
-  display: none;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 6px;
-  flex-shrink: 0;
-  margin-right: 4px;
-  transform: translateZ(0);
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
-}
-
-.compact-media-badge.visible {
-  display: flex;
-}
-
-.compact-media-badge.youtube {
-  background: linear-gradient(135deg, #ff0000, #cc0000);
-  color: #ffffff;
-  box-shadow: 0 0 8px rgba(255, 0, 0, 0.45);
-}
-
-.compact-media-badge.spotify {
-  background: linear-gradient(135deg, #1ed760, #1db954);
-  color: #000000;
-  box-shadow: 0 0 8px rgba(30, 215, 96, 0.45);
-}
-
-.compact-media-badge.soundcloud {
-  background: linear-gradient(135deg, #ff7700, #ff5500);
-  color: #ffffff;
-  box-shadow: 0 0 8px rgba(255, 85, 0, 0.45);
-}
-
-.compact-media-badge.audio {
-  background: linear-gradient(135deg, var(--accent-cyan), #0891b2);
-  color: #000000;
-  box-shadow: 0 0 8px rgba(6, 182, 212, 0.45);
-}
-
-.media-badge-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-}
-
 .mini-equalizer:not(.visible):not(.active) {
   display: none !important;
 }
@@ -1213,28 +1164,75 @@ body.bg-photo .compact-glass-tint {
 .sound-wave {
   display: flex;
   align-items: flex-end;
-  gap: 2.5px;
-  height: 12px;
+  gap: 3px;
+  height: 22px;
+  margin-top: 4px;
 }
 
 .wave-bar {
-  width: 2.5px;
-  background: var(--accent-cyan);
-  border-radius: 1px;
-  height: 3px;
+  width: 3.5px;
+  background: linear-gradient(to top, var(--accent-cyan), #38bdf8);
+  border-radius: 2px;
+  height: 4px;
+  opacity: 0.45;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  will-change: height, box-shadow, opacity;
+  transition: height 0.2s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease, box-shadow 0.2s ease;
 }
 
-.sound-wave.active .wave-bar:nth-child(1) { animation: wave-pulse 0.7s infinite; }
-.sound-wave.active .wave-bar:nth-child(2) { animation: wave-pulse 0.5s infinite 0.1s; }
-.sound-wave.active .wave-bar:nth-child(3) { animation: wave-pulse 0.8s infinite 0.2s; }
-.sound-wave.active .wave-bar:nth-child(4) { animation: wave-pulse 0.6s infinite 0.3s; }
-.sound-wave.active .wave-bar:nth-child(5) { animation: wave-pulse 0.9s infinite 0.1s; }
-.sound-wave.active .wave-bar:nth-child(6) { animation: wave-pulse 0.5s infinite 0.4s; }
-.sound-wave.active .wave-bar:nth-child(7) { animation: wave-pulse 0.7s infinite 0.2s; }
+.sound-wave.active .wave-bar {
+  opacity: 1;
+  box-shadow: 0 0 6px rgba(6, 182, 212, 0.75);
+}
 
-@keyframes wave-pulse {
-  0%, 100% { height: 3px; }
-  50% { height: 12px; }
+.sound-wave.active .bar-1 { animation: soundwave-pulse-1 0.75s infinite ease-in-out; }
+.sound-wave.active .bar-2 { animation: soundwave-pulse-2 0.55s infinite 0.10s ease-in-out; }
+.sound-wave.active .bar-3 { animation: soundwave-pulse-3 0.85s infinite 0.22s ease-in-out; }
+.sound-wave.active .bar-4 { animation: soundwave-pulse-4 0.65s infinite 0.05s ease-in-out; }
+.sound-wave.active .bar-5 { animation: soundwave-pulse-5 0.95s infinite 0.18s ease-in-out; }
+.sound-wave.active .bar-6 { animation: soundwave-pulse-6 0.50s infinite 0.12s ease-in-out; }
+.sound-wave.active .bar-7 { animation: soundwave-pulse-7 0.80s infinite 0.28s ease-in-out; }
+.sound-wave.active .bar-8 { animation: soundwave-pulse-8 0.60s infinite 0.08s ease-in-out; }
+
+@keyframes soundwave-pulse-1 {
+  0%, 100% { height: 4px; }
+  50% { height: 17px; }
+}
+
+@keyframes soundwave-pulse-2 {
+  0%, 100% { height: 5px; }
+  50% { height: 21px; }
+}
+
+@keyframes soundwave-pulse-3 {
+  0%, 100% { height: 4px; }
+  50% { height: 14px; }
+}
+
+@keyframes soundwave-pulse-4 {
+  0%, 100% { height: 6px; }
+  50% { height: 20px; }
+}
+
+@keyframes soundwave-pulse-5 {
+  0%, 100% { height: 4px; }
+  50% { height: 22px; }
+}
+
+@keyframes soundwave-pulse-6 {
+  0%, 100% { height: 5px; }
+  50% { height: 16px; }
+}
+
+@keyframes soundwave-pulse-7 {
+  0%, 100% { height: 4px; }
+  50% { height: 19px; }
+}
+
+@keyframes soundwave-pulse-8 {
+  0%, 100% { height: 4px; }
+  50% { height: 15px; }
 }
 
 .media-playback-dock {
