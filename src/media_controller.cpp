@@ -261,17 +261,37 @@ static BOOL CALLBACK HuntMediaWindowsProc(HWND hWnd, LPARAM lParam) {
     }
 
     // Check YouTube in browser window
-    if (titleUtf8.find(" - YouTube") != std::string::npos) {
+    if (titleUtf8.find("YouTube") != std::string::npos) {
         hunt->appName = "YouTube";
         size_t ytPos = titleUtf8.find(" - YouTube");
-        std::string raw = titleUtf8.substr(0, ytPos);
-        size_t dash = raw.find(" - ");
-        if (dash != std::string::npos) {
-            hunt->artist = raw.substr(0, dash);
-            hunt->title = raw.substr(dash + 3);
+        if (ytPos != std::string::npos) {
+            std::string raw = titleUtf8.substr(0, ytPos);
+            // Strip leading notification indicator e.g. "(1) " or "(9+) "
+            if (raw.size() > 3 && raw[0] == '(' && raw.find(") ") != std::string::npos) {
+                raw = raw.substr(raw.find(") ") + 2);
+            }
+            size_t dash = raw.find(" - ");
+            if (dash != std::string::npos) {
+                hunt->artist = raw.substr(0, dash);
+                hunt->title = raw.substr(dash + 3);
+            } else {
+                hunt->title = raw;
+            }
         } else {
-            hunt->title = raw;
+            // Window title is e.g. "YouTube - Google Chrome"
+            size_t bDash = titleUtf8.find(" - ");
+            if (bDash != std::string::npos && bDash > 0) {
+                std::string raw = titleUtf8.substr(0, bDash);
+                if (raw != "YouTube") {
+                    hunt->title = raw;
+                } else {
+                    hunt->title = "YouTube Video";
+                }
+            } else {
+                hunt->title = "YouTube Video";
+            }
         }
+        if (hunt->title.empty()) hunt->title = "YouTube Video";
         hunt->found = true;
         return FALSE;
     }
@@ -290,10 +310,10 @@ MediaStatus MediaController::GetStatus() {
 
     if (SUCCEEDED(hr) && pEnumerator) {
         IMMDevice* pDevice = nullptr;
-        // Check default playback endpoint (eConsole first, fallback to eMultimedia)
-        hr = pEnumerator->GetDefaultAudioEndpoint(eRender, eConsole, &pDevice);
+        // Check default multimedia playback endpoint first, fallback to eConsole
+        hr = pEnumerator->GetDefaultAudioEndpoint(eRender, eMultimedia, &pDevice);
         if (FAILED(hr) || !pDevice) {
-            hr = pEnumerator->GetDefaultAudioEndpoint(eRender, eMultimedia, &pDevice);
+            hr = pEnumerator->GetDefaultAudioEndpoint(eRender, eConsole, &pDevice);
         }
 
         if (SUCCEEDED(hr) && pDevice) {
@@ -307,7 +327,7 @@ MediaStatus MediaController::GetStatus() {
                 pEndpointVolume->Release();
             }
 
-            // 2. Real-time audio meter (detect active sound wave)
+            // 2. Real-time audio meter on default endpoint
             IAudioMeterInformation* pMeterInfo = nullptr;
             if (SUCCEEDED(pDevice->Activate(__uuidof(IAudioMeterInformation), CLSCTX_ALL, NULL, (void**)&pMeterInfo)) && pMeterInfo) {
                 float peak = 0.0f;
@@ -316,7 +336,6 @@ MediaStatus MediaController::GetStatus() {
                 }
                 pMeterInfo->Release();
             }
-            K2::Log("Media: Meter check peak=" + std::to_string(status.peakLevel));
 
             // 3. Audio sessions inspection
             IAudioSessionManager2* pSessionManager = nullptr;
@@ -331,6 +350,16 @@ MediaStatus MediaController::GetStatus() {
                     for (int i = 0; i < sessionCount; ++i) {
                         IAudioSessionControl* pSessionControl = nullptr;
                         if (SUCCEEDED(pSessionList->GetSession(i, &pSessionControl)) && pSessionControl) {
+                            // Check per-session audio meter
+                            IAudioMeterInformation* pSMeter = nullptr;
+                            if (SUCCEEDED(pSessionControl->QueryInterface(__uuidof(IAudioMeterInformation), (void**)&pSMeter)) && pSMeter) {
+                                float sPeak = 0.0f;
+                                if (SUCCEEDED(pSMeter->GetPeakValue(&sPeak)) && sPeak > status.peakLevel) {
+                                    status.peakLevel = sPeak;
+                                }
+                                pSMeter->Release();
+                            }
+
                             AudioSessionState state;
                             if (SUCCEEDED(pSessionControl->GetState(&state)) && state == AudioSessionStateActive) {
                                 DWORD pid = 0;
@@ -369,12 +398,9 @@ MediaStatus MediaController::GetStatus() {
                                                   exeLower.find("firefox") != std::string::npos || 
                                                   exeLower.find("brave") != std::string::npos);
 
-                                // Only accept session if it is NOT a generic silent browser session
                                 if (!isBrowser || !wndTitle.empty()) {
                                     status.hasActiveSession = true;
                                     ExtractTrackMetadata(rawExeName, wndTitle, status);
-                                    pSessionControl->Release();
-                                    break;
                                 }
                             }
                             pSessionControl->Release();
@@ -386,9 +412,32 @@ MediaStatus MediaController::GetStatus() {
             }
             pDevice->Release();
         }
+
+        // Also check all active audio endpoints to ensure USB/Bluetooth/Headphone peak is captured
+        IMMDeviceCollection* pCol = nullptr;
+        if (SUCCEEDED(pEnumerator->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &pCol)) && pCol) {
+            UINT devCount = 0;
+            pCol->GetCount(&devCount);
+            for (UINT d = 0; d < devCount; ++d) {
+                IMMDevice* pDevItem = nullptr;
+                if (SUCCEEDED(pCol->Item(d, &pDevItem)) && pDevItem) {
+                    IAudioMeterInformation* pM = nullptr;
+                    if (SUCCEEDED(pDevItem->Activate(__uuidof(IAudioMeterInformation), CLSCTX_ALL, NULL, (void**)&pM)) && pM) {
+                        float pVal = 0.0f;
+                        if (SUCCEEDED(pM->GetPeakValue(&pVal)) && pVal > status.peakLevel) {
+                            status.peakLevel = pVal;
+                        }
+                        pM->Release();
+                    }
+                    pDevItem->Release();
+                }
+            }
+            pCol->Release();
+        }
+
         pEnumerator->Release();
     }
-    K2::Log("Media: Sessions done");
+    K2::Log("Media: Sessions done peak=" + std::to_string(status.peakLevel));
 
     // Always hunt for active YouTube or Spotify windows to ensure precise track title & platform
     MediaWindowHunt hunt;
@@ -397,13 +446,13 @@ MediaStatus MediaController::GetStatus() {
     if (hunt.found) {
         status.hasActiveSession = true;
         status.appName = hunt.appName;
-        status.title = hunt.title;
-        status.artist = hunt.artist;
+        if (!hunt.title.empty()) status.title = hunt.title;
+        if (!hunt.artist.empty()) status.artist = hunt.artist;
     }
 
-    // Determine actual playback status from real-time audio output
+    // Determine actual playback status with sensitive audio threshold (> 0.0005f)
     ULONGLONG now = GetTickCount64();
-    if (status.peakLevel > 0.008f) {
+    if (status.peakLevel > 0.0005f) {
         m_lastAudioPeakTick = now;
         status.isPlaying = true;
         if (!status.hasActiveSession) {
@@ -412,8 +461,8 @@ MediaStatus MediaController::GetStatus() {
             status.title = "System Audio";
         }
     } else {
-        // Bridge micro-pauses between musical notes for 800ms
-        if (m_lastAudioPeakTick != 0 && (now - m_lastAudioPeakTick) < 800) {
+        // Bridge micro-pauses between musical notes for 1800ms
+        if (m_lastAudioPeakTick != 0 && (now - m_lastAudioPeakTick) < 1800ULL) {
             status.isPlaying = true;
         } else {
             status.isPlaying = false;

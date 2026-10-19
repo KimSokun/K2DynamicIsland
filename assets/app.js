@@ -1054,8 +1054,8 @@
       if (elements.compactSeparator) elements.compactSeparator.style.display = 'inline';
       if (elements.compactSubtext) {
         elements.compactSubtext.style.display = 'inline-flex';
-        const titleText = m.title || 'Playing Audio';
-        const fullTrack = m.artist ? `${m.artist} - ${titleText}` : titleText;
+        const titleText = (m.title && m.title !== m.appName) ? m.title : 'Playing Music';
+        const fullTrack = (m.artist && m.artist !== m.appName) ? `${m.artist} - ${titleText}` : titleText;
         
         elements.compactSubtext.title = fullTrack;
         elements.compactSubtext.classList.add('marquee');
