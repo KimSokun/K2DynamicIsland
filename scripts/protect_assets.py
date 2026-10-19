@@ -27,19 +27,6 @@ def obfuscate_js(js: str) -> str:
     security_envelope = """/* (C) 2026 K2 Systems - Protected Application Binary */
 (function(_0xguard){
   'use strict';
-  // Anti-debugging & DevTools Deterrent
-  (function(){
-    var _check = function(){
-      try {
-        var _start = Date.now();
-        (function(){})['constructor']('debugger')();
-        if (Date.now() - _start > 100) {
-          window.location.reload();
-        }
-      } catch(e){}
-    };
-    setInterval(_check, 4000);
-  })();
   // Disable console inspection
   if (window.console) {
     var _noop = function(){};

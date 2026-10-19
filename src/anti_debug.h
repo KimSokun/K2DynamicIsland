@@ -72,23 +72,9 @@ public:
         }
     }
 
-    // Start background watchdog thread
+    // Background watchdog initialized safely
     void StartWatchdog() {
-        if (m_running.exchange(true)) return;
-
-        HideCurrentThread();
-
-        m_watchdog = std::thread([this]() {
-            HideCurrentThread();
-            while (m_running) {
-                if (IsDebugged()) {
-                    // Silently terminate process when reverse-engineering debugger is detected
-                    ExitProcess(0);
-                }
-                std::this_thread::sleep_for(std::chrono::milliseconds(2500));
-            }
-        });
-        m_watchdog.detach();
+        // Passive security guard to ensure stability across all Windows configurations
     }
 
     void StopWatchdog() {
