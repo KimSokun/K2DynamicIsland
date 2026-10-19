@@ -64,6 +64,7 @@ public:
     static std::string CleanVersionTag(const std::string& tag);
     static bool ValidateHttpsUrl(const std::string& url);
     static bool VerifyInstallerSignature(const std::wstring& filePath, std::string& errorDetail);
+    static bool VerifyInstallerIntegrity(const std::wstring& filePath, std::string& errorDetail);
 
 private:
     UpdateManager();

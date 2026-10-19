@@ -481,28 +481,35 @@ void AppWindow::StartWindowDrag() {
 void AppWindow::RecenterWindow() {
     if (!m_hWnd) return;
 
-    // Scan monitor frame where the window currently is
-    HMONITOR hMon = MonitorFromWindow(m_hWnd, MONITOR_DEFAULTTONEAREST);
+    // Scan monitor frame where cursor or window is currently located
+    POINT ptCursor = {};
+    GetCursorPos(&ptCursor);
+    HMONITOR hMon = MonitorFromPoint(ptCursor, MONITOR_DEFAULTTONEAREST);
+    if (!hMon) {
+        hMon = MonitorFromWindow(m_hWnd, MONITOR_DEFAULTTONEAREST);
+    }
     MONITORINFO mi = { sizeof(mi) };
 
     RECT rcWnd = {};
     GetWindowRect(m_hWnd, &rcWnd);
     int curW = rcWnd.right - rcWnd.left;
     int curH = rcWnd.bottom - rcWnd.top;
-    if (curW <= 0) curW = m_currentWidth;
-    if (curH <= 0) curH = m_currentHeight;
+    UINT dpi = GetWindowDpi(m_hWnd);
+    if (curW <= 0) curW = ScaleForDpi(m_currentWidth, dpi);
+    if (curH <= 0) curH = ScaleForDpi(m_currentHeight, dpi);
 
+    int topMargin = ScaleForDpi(12, dpi);
     int newX = 0;
-    int newY = 12;
+    int newY = topMargin;
 
-    if (GetMonitorInfoW(hMon, &mi)) {
+    if (hMon && GetMonitorInfoW(hMon, &mi)) {
         int workWidth = mi.rcWork.right - mi.rcWork.left;
         newX = mi.rcWork.left + (workWidth - curW) / 2;
-        newY = mi.rcWork.top + 12;
+        newY = mi.rcWork.top + topMargin;
     } else {
         int screenW = GetSystemMetrics(SM_CXSCREEN);
         newX = (screenW - curW) / 2;
-        newY = 12;
+        newY = topMargin;
     }
 
     SetWindowPos(m_hWnd, m_alwaysOnTop ? HWND_TOPMOST : HWND_NOTOPMOST,

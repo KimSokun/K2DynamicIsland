@@ -657,10 +657,28 @@
       elements.modalNotesInstall.classList.toggle('hidden', updateState !== 'ready_to_install');
     }
 
-    if (updateState === 'ready_to_install') {
-      showToast(`Update v${latestVersion} is verified and ready to install!`);
+    if (updateState === 'available') {
+      showToast(`Update v${latestVersion} available! Downloading...`);
+    } else if (updateState === 'ready_to_install') {
+      showToast(`Update v${latestVersion} ready! Click here to install.`);
+      if (elements.toast) {
+        elements.toast.style.cursor = 'pointer';
+        elements.toast.onclick = async () => {
+          showToast('Launching update installer...');
+          await callNative('install_update', { silent: false });
+        };
+      }
     } else if (updateState === 'error' && error) {
+      if (elements.toast) {
+        elements.toast.style.cursor = 'default';
+        elements.toast.onclick = null;
+      }
       showToast(error);
+    } else {
+      if (elements.toast) {
+        elements.toast.style.cursor = 'default';
+        elements.toast.onclick = null;
+      }
     }
   }
 
@@ -1232,8 +1250,10 @@
         elements.btnPinToggle.classList.toggle('pinned', newVal);
         if (elements.settingAlwaysOnTop) elements.settingAlwaysOnTop.checked = newVal;
         await callNative('set_always_on_top', { enabled: newVal });
+        // Scan monitor screen frame and move island to middle on top!
+        await callNative('recenter_island');
         await callNative('save_settings', { settings: { alwaysOnTop: newVal } });
-        showToast(newVal ? 'Capsule pinned Always On Top (Centered)' : 'Always On Top disabled');
+        showToast(newVal ? 'Island pinned & centered at screen top' : 'Island centered at screen top (Pin off)');
       });
     }
 

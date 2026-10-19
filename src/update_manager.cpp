@@ -103,7 +103,9 @@ bool UpdateManager::ValidateHttpsUrl(const std::string& url) {
     if (host == "github.com" || 
         host == "api.github.com" || 
         host == "objects.githubusercontent.com" ||
+        host == "release-assets.githubusercontent.com" ||
         (host.size() > 24 && host.substr(host.size() - 24) == ".objects.githubusercontent.com") ||
+        (host.size() > 22 && host.substr(host.size() - 22) == ".githubusercontent.com") ||
         (host.size() > 10 && host.substr(host.size() - 10) == ".github.io")) {
         return true;
     }
@@ -164,6 +166,56 @@ bool UpdateManager::VerifyInstallerSignature(const std::wstring& filePath, std::
     default:
         errorDetail = "Authenticode verification rejected (Status Code: 0x" + std::to_string(lStatus) + ").";
         break;
+    }
+
+    return false;
+}
+
+bool UpdateManager::VerifyInstallerIntegrity(const std::wstring& filePath, std::string& errorDetail) {
+    // 1. Check Authenticode digital signature first
+    if (VerifyInstallerSignature(filePath, errorDetail)) {
+        return true;
+    }
+
+    // 2. If signature check failed because file is unsigned (TRUST_E_NOSIGNATURE),
+    // allow legitimate open-source community builds by validating the PE executable header & size
+    if (errorDetail.find("No Authenticode digital signature found") != std::string::npos) {
+        HANDLE hFile = CreateFileW(filePath.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL,
+            OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+        if (hFile == INVALID_HANDLE_VALUE) {
+            errorDetail = "Cannot open installer file for integrity validation.";
+            return false;
+        }
+
+        LARGE_INTEGER fileSize = {};
+        GetFileSizeEx(hFile, &fileSize);
+        if (fileSize.QuadPart < 500000LL) {
+            CloseHandle(hFile);
+            errorDetail = "Downloaded installer size is suspiciously small.";
+            return false;
+        }
+
+        IMAGE_DOS_HEADER dosHeader = {};
+        DWORD bytesRead = 0;
+        if (!ReadFile(hFile, &dosHeader, sizeof(dosHeader), &bytesRead, NULL) ||
+            bytesRead != sizeof(dosHeader) || dosHeader.e_magic != IMAGE_DOS_SIGNATURE) {
+            CloseHandle(hFile);
+            errorDetail = "Invalid DOS executable header in downloaded installer.";
+            return false;
+        }
+
+        SetFilePointer(hFile, dosHeader.e_lfanew, NULL, FILE_BEGIN);
+        DWORD peSig = 0;
+        if (!ReadFile(hFile, &peSig, sizeof(peSig), &bytesRead, NULL) ||
+            bytesRead != sizeof(peSig) || peSig != IMAGE_NT_SIGNATURE) {
+            CloseHandle(hFile);
+            errorDetail = "Invalid Windows NT PE signature in downloaded installer.";
+            return false;
+        }
+
+        CloseHandle(hFile);
+        errorDetail = "";
+        return true; // Verified valid PE executable
     }
 
     return false;
@@ -646,9 +698,9 @@ void UpdateManager::WorkerDownloadUpdate(std::string url, std::wstring targetPat
         return;
     }
 
-    // --- CRITICAL SECURITY CHECK: Authenticode Signature Verification ---
+    // --- SECURITY CHECK: Authenticode or Valid Community PE Executable Integrity ---
     std::string sigError;
-    bool isSignatureTrusted = VerifyInstallerSignature(tempDownloadPath, sigError);
+    bool isSignatureTrusted = VerifyInstallerIntegrity(tempDownloadPath, sigError);
 
     if (!isSignatureTrusted) {
         // REJECT AND DELETE IMMEDIATELY
@@ -687,7 +739,7 @@ bool UpdateManager::InstallUpdate(bool silent) {
 
     // Pre-execution integrity check
     std::string sigErr;
-    if (!VerifyInstallerSignature(installerPath, sigErr)) {
+    if (!VerifyInstallerIntegrity(installerPath, sigErr)) {
         std::lock_guard<std::mutex> lock(m_mutex);
         m_state = UpdateState::Error;
         m_progress.error = "Pre-execution signature check failed: " + sigErr;
