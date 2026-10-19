@@ -343,6 +343,15 @@ bool Test_UpdateSettingsPersistence() {
     return true;
 }
 
+bool Test_StartupRegistration() {
+    bool initial = StorageManager::Instance().IsLaunchAtStartupEnabled();
+    TEST_ASSERT(StorageManager::Instance().SetLaunchAtStartup(true), "SetLaunchAtStartup(true) must succeed");
+    TEST_ASSERT(StorageManager::Instance().IsLaunchAtStartupEnabled(), "IsLaunchAtStartupEnabled() must return true after enabling");
+    // Restore
+    StorageManager::Instance().SetLaunchAtStartup(initial);
+    return true;
+}
+
 int main() {
     std::cout << "========================================" << std::endl;
     std::cout << "  K2 Dynamic Island - Unit Test Suite   " << std::endl;
@@ -363,6 +372,7 @@ int main() {
     RUN_TEST(Test_UpdateUrlSecurity);
     RUN_TEST(Test_UpdateSignatureVerificationSecurity);
     RUN_TEST(Test_UpdateSettingsPersistence);
+    RUN_TEST(Test_StartupRegistration);
 
     std::cout << "----------------------------------------" << std::endl;
     std::cout << "Total: " << (passed + failed) << " | Passed: " << passed << " | Failed: " << failed << std::endl;

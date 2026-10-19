@@ -81,6 +81,12 @@ To ensure peak performance, instant startup (< 50ms), and true portable deployme
 2. **Pin SVG Button Monitor Frame Scan & Recenter (`recenter_island`)**:
    - **Root Cause**: Clicking the Pin SVG button previously toggled `alwaysOnTop` without updating window coordinates.
    - **Solution**: Wired `btn-pin-toggle` to invoke `recenter_island`. It scans the active monitor (`MonitorFromPoint` / `GetMonitorInfoW`), calculates the exact horizontal center (`newX = mi.rcWork.left + (workWidth - curW) / 2`), positions the island 12px from top (`ScaleForDpi(12, dpi)`), and saves the coordinates to local storage.
+3. **Windows Startup Apps Registration & Enabled By Default**:
+   - **Root Cause**: Missing registry registration in `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run`, stale `0x02` (disabled) flag in `StartupApproved\Run`, and `launchAtStartup` defaulted to `false`.
+   - **Solution**: Defaulted `launchAtStartup = true` across C++ backend and JavaScript frontend. Setup wizard and `StorageManager` now register `K2 Dynamic Island` in `HKCU\...\Run` and explicitly synchronize `StartupApproved\Run` (`0x03` enabled flag), making K2 Dynamic Island appear in Windows Settings -> Apps -> Startup and Task Manager enabled by default.
+4. **Media Play/Pause State Desynchronization & Inversion Fix**:
+   - **Root Cause**: An 1800ms micro-pause bridge in `GetStatus()` caused `isPlaying` to report `true` for 1.8 seconds after pausing, forcing the UI back to "Playing" and inverting user click expectations (stop played, play stopped). Furthermore, `btnMediaPlay` queried a DOM class rather than state.
+   - **Solution**: Cleared `m_lastAudioPeakTick = 0` on `PlayPause()`, reduced note bridge from 1800ms to 400ms, unified `state.mediaStatus.isPlaying` as the single source of truth with responsive optimistic UI updates, and standardized media key broadcasting via `keybd_event`.
 
 ---
 

@@ -43,6 +43,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     DeleteShortcut(CSIDL_DESKTOPDIRECTORY, L"K2 Dynamic Island.lnk");
     DeleteShortcut(CSIDL_COMMON_PROGRAMS, L"K2 Dynamic Island.lnk");
     DeleteShortcut(CSIDL_COMMON_DESKTOPDIRECTORY, L"K2 Dynamic Island.lnk");
+    DeleteShortcut(CSIDL_STARTUP, L"K2 Dynamic Island.lnk");
+    DeleteShortcut(CSIDL_COMMON_STARTUP, L"K2 Dynamic Island.lnk");
 
     // Remove Registry Keys
     RegDeleteKeyW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\K2DynamicIsland");
@@ -51,6 +53,11 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_SET_VALUE, &hRunKey) == ERROR_SUCCESS) {
         RegDeleteValueW(hRunKey, L"K2 Dynamic Island");
         RegCloseKey(hRunKey);
+    }
+    HKEY hApprovedKey;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run", 0, KEY_SET_VALUE, &hApprovedKey) == ERROR_SUCCESS) {
+        RegDeleteValueW(hApprovedKey, L"K2 Dynamic Island");
+        RegCloseKey(hApprovedKey);
     }
 
     // Delete app files

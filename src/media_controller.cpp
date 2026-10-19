@@ -36,23 +36,12 @@ MediaController::MediaController() {
 }
 
 void MediaController::SendMediaKey(BYTE vkCode) {
-    WORD scanCode = (WORD)MapVirtualKeyW(vkCode, MAPVK_VK_TO_VSC);
-
-    INPUT inputs[2] = {};
-    inputs[0].type = INPUT_KEYBOARD;
-    inputs[0].ki.wVk = vkCode;
-    inputs[0].ki.wScan = scanCode;
-    inputs[0].ki.dwFlags = KEYEVENTF_EXTENDEDKEY;
-
-    inputs[1].type = INPUT_KEYBOARD;
-    inputs[1].ki.wVk = vkCode;
-    inputs[1].ki.wScan = scanCode;
-    inputs[1].ki.dwFlags = KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP;
-
-    SendInput(2, inputs, sizeof(INPUT));
+    keybd_event(vkCode, 0, KEYEVENTF_EXTENDEDKEY, 0);
+    keybd_event(vkCode, 0, KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP, 0);
 }
 
 bool MediaController::PlayPause() {
+    m_lastAudioPeakTick = 0;
     SendMediaKey(VK_MEDIA_PLAY_PAUSE);
     return true;
 }
@@ -461,8 +450,8 @@ MediaStatus MediaController::GetStatus() {
             status.title = "System Audio";
         }
     } else {
-        // Bridge micro-pauses between musical notes for 1800ms
-        if (m_lastAudioPeakTick != 0 && (now - m_lastAudioPeakTick) < 1800ULL) {
+        // Bridge micro-pauses between musical notes for 400ms
+        if (m_lastAudioPeakTick != 0 && (now - m_lastAudioPeakTick) < 400ULL) {
             status.isPlaying = true;
         } else {
             status.isPlaying = false;

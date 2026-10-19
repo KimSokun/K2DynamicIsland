@@ -58,7 +58,8 @@ AppSettings StorageManager::LoadSettings() {
 
     std::ifstream file(path.c_str());
     if (!file.is_open()) {
-        // Return defaults if file doesn't exist yet
+        // Return defaults if file doesn't exist yet, and ensure startup registration
+        SetLaunchAtStartup(true);
         return settings;
     }
 
@@ -254,10 +255,30 @@ bool StorageManager::SetLaunchAtStartup(bool enable) {
             (const BYTE*)quotedPath.c_str(),
             static_cast<DWORD>((quotedPath.length() + 1) * sizeof(wchar_t)));
         RegCloseKey(hKey);
+
+        // Synchronize StartupApproved\Run so Windows Settings and Task Manager reflect 'Enabled'
+        HKEY hApprovedKey;
+        const wchar_t* approvedSubKey = L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run";
+        if (RegCreateKeyExW(HKEY_CURRENT_USER, approvedSubKey, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_SET_VALUE, NULL, &hApprovedKey, NULL) == ERROR_SUCCESS) {
+            BYTE enabledBytes[12] = { 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+            RegSetValueExW(hApprovedKey, valName, 0, REG_BINARY, enabledBytes, sizeof(enabledBytes));
+            RegCloseKey(hApprovedKey);
+        }
+
         return (res == ERROR_SUCCESS);
     } else {
         RegDeleteValueW(hKey, valName);
         RegCloseKey(hKey);
+
+        // Mark disabled in StartupApproved\Run
+        HKEY hApprovedKey;
+        const wchar_t* approvedSubKey = L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run";
+        if (RegOpenKeyExW(HKEY_CURRENT_USER, approvedSubKey, 0, KEY_SET_VALUE, &hApprovedKey) == ERROR_SUCCESS) {
+            BYTE disabledBytes[12] = { 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+            RegSetValueExW(hApprovedKey, valName, 0, REG_BINARY, disabledBytes, sizeof(disabledBytes));
+            RegCloseKey(hApprovedKey);
+        }
+
         return true;
     }
 }
@@ -273,7 +294,28 @@ bool StorageManager::IsLaunchAtStartupEnabled() const {
     DWORD type = 0;
     LONG res = RegQueryValueExW(hKey, valName, NULL, &type, NULL, NULL);
     RegCloseKey(hKey);
-    return (res == ERROR_SUCCESS);
+    if (res != ERROR_SUCCESS) {
+        return false;
+    }
+
+    // Inspect StartupApproved\Run if present
+    HKEY hApprovedKey;
+    const wchar_t* approvedSubKey = L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run";
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, approvedSubKey, 0, KEY_QUERY_VALUE, &hApprovedKey) == ERROR_SUCCESS) {
+        BYTE data[32] = {};
+        DWORD dataSize = sizeof(data);
+        if (RegQueryValueExW(hApprovedKey, valName, NULL, &type, data, &dataSize) == ERROR_SUCCESS) {
+            RegCloseKey(hApprovedKey);
+            // Even value (lowest bit 0, such as 0x02) indicates disabled in Windows Settings
+            if (dataSize > 0 && (data[0] % 2 == 0)) {
+                return false;
+            }
+            return true;
+        }
+        RegCloseKey(hApprovedKey);
+    }
+
+    return true;
 }
 
 } // namespace K2

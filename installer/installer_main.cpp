@@ -16,6 +16,7 @@
 #define IDC_EDIT_PATH      1004
 #define IDC_CHK_DESKTOP    1005
 #define IDC_CHK_LAUNCH     1006
+#define IDC_CHK_STARTUP    1009
 #define IDC_PROGRESS       1007
 #define IDC_STATUS_LABEL   1008
 
@@ -28,6 +29,7 @@ struct InstallContext {
     std::wstring installDir;
     bool createDesktopShortcut;
     bool launchAfterInstall;
+    bool startWithWindows;
 };
 
 static InstallContext g_ctx;
@@ -254,7 +256,30 @@ static DWORD WINAPI InstallThreadProc(LPVOID lpParam) {
         RegCloseKey(hUninstKey);
     }
 
-    // 7. Finish
+    // 7. Registering in Windows Startup Apps (Enabled by default)
+    if (ctx->startWithWindows) {
+        PostMessageW(ctx->hWnd, WM_INSTALL_PROGRESS, 95, (LPARAM)L"Enabling Windows startup app registration...");
+        HKEY hRunKey;
+        const wchar_t* runSubKey = L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+        if (RegCreateKeyExW(HKEY_CURRENT_USER, runSubKey, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_SET_VALUE, NULL, &hRunKey, NULL) == ERROR_SUCCESS) {
+            const wchar_t* valName = L"K2 Dynamic Island";
+            std::wstring quotedPath = L"\"" + targetExe + L"\"";
+            RegSetValueExW(hRunKey, valName, 0, REG_SZ,
+                (const BYTE*)quotedPath.c_str(),
+                static_cast<DWORD>((quotedPath.length() + 1) * sizeof(wchar_t)));
+            RegCloseKey(hRunKey);
+        }
+
+        HKEY hApprovedKey;
+        const wchar_t* approvedSubKey = L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run";
+        if (RegCreateKeyExW(HKEY_CURRENT_USER, approvedSubKey, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_SET_VALUE, NULL, &hApprovedKey, NULL) == ERROR_SUCCESS) {
+            BYTE enabledBytes[12] = { 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+            RegSetValueExW(hApprovedKey, L"K2 Dynamic Island", 0, REG_BINARY, enabledBytes, sizeof(enabledBytes));
+            RegCloseKey(hApprovedKey);
+        }
+    }
+
+    // 8. Finish
     PostMessageW(ctx->hWnd, WM_INSTALL_PROGRESS, 100, (LPARAM)L"Installation completed successfully!");
     PostMessageW(ctx->hWnd, WM_INSTALL_COMPLETE, 0, 0);
     return 0;
@@ -292,23 +317,28 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 
         // Options Checkboxes
         HWND hChkDesktop = CreateWindowW(L"BUTTON", L"Create Desktop shortcut",
-            WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, 24, 146, 260, 20, hWnd, (HMENU)IDC_CHK_DESKTOP, NULL, NULL);
+            WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, 24, 140, 260, 20, hWnd, (HMENU)IDC_CHK_DESKTOP, NULL, NULL);
         SendMessageW(hChkDesktop, WM_SETFONT, (WPARAM)g_hFontNormal, TRUE);
         SendMessageW(hChkDesktop, BM_SETCHECK, BST_CHECKED, 0);
 
         HWND hChkLaunch = CreateWindowW(L"BUTTON", L"Launch K2 Dynamic Island after installation",
-            WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, 24, 172, 320, 20, hWnd, (HMENU)IDC_CHK_LAUNCH, NULL, NULL);
+            WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, 24, 162, 320, 20, hWnd, (HMENU)IDC_CHK_LAUNCH, NULL, NULL);
         SendMessageW(hChkLaunch, WM_SETFONT, (WPARAM)g_hFontNormal, TRUE);
         SendMessageW(hChkLaunch, BM_SETCHECK, BST_CHECKED, 0);
 
+        HWND hChkStartup = CreateWindowW(L"BUTTON", L"Start K2 Dynamic Island when Windows starts (Startup Apps)",
+            WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, 24, 184, 420, 20, hWnd, (HMENU)IDC_CHK_STARTUP, NULL, NULL);
+        SendMessageW(hChkStartup, WM_SETFONT, (WPARAM)g_hFontNormal, TRUE);
+        SendMessageW(hChkStartup, BM_SETCHECK, BST_CHECKED, 0);
+
         // Status Label
         HWND hLblStatus = CreateWindowW(L"STATIC", L"Ready to install. Click 'Install' to begin setup.",
-            WS_CHILD | WS_VISIBLE | SS_LEFTNOWORDWRAP, 24, 210, 472, 18, hWnd, (HMENU)IDC_STATUS_LABEL, NULL, NULL);
+            WS_CHILD | WS_VISIBLE | SS_LEFTNOWORDWRAP, 24, 212, 472, 18, hWnd, (HMENU)IDC_STATUS_LABEL, NULL, NULL);
         SendMessageW(hLblStatus, WM_SETFONT, (WPARAM)g_hFontNormal, TRUE);
 
         // Progress Bar
         HWND hProg = CreateWindowExW(0, PROGRESS_CLASSW, NULL,
-            WS_CHILD | WS_VISIBLE | PBS_SMOOTH, 24, 232, 472, 18, hWnd, (HMENU)IDC_PROGRESS, NULL, NULL);
+            WS_CHILD | WS_VISIBLE | PBS_SMOOTH, 24, 234, 472, 18, hWnd, (HMENU)IDC_PROGRESS, NULL, NULL);
         SendMessageW(hProg, PBM_SETRANGE32, 0, 100);
         SendMessageW(hProg, PBM_SETPOS, 0, 0);
 
@@ -395,6 +425,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 
             g_ctx.createDesktopShortcut = (IsDlgButtonChecked(hWnd, IDC_CHK_DESKTOP) == BST_CHECKED);
             g_ctx.launchAfterInstall = (IsDlgButtonChecked(hWnd, IDC_CHK_LAUNCH) == BST_CHECKED);
+            g_ctx.startWithWindows = (IsDlgButtonChecked(hWnd, IDC_CHK_STARTUP) == BST_CHECKED);
 
             // Disable controls during installation
             EnableWindow(GetDlgItem(hWnd, IDC_BTN_INSTALL), FALSE);
@@ -402,6 +433,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             EnableWindow(GetDlgItem(hWnd, IDC_EDIT_PATH), FALSE);
             EnableWindow(GetDlgItem(hWnd, IDC_CHK_DESKTOP), FALSE);
             EnableWindow(GetDlgItem(hWnd, IDC_CHK_LAUNCH), FALSE);
+            EnableWindow(GetDlgItem(hWnd, IDC_CHK_STARTUP), FALSE);
 
             CreateThread(NULL, 0, InstallThreadProc, &g_ctx, 0, NULL);
         }
@@ -464,6 +496,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     g_ctx.installDir = std::wstring(localAppPath) + L"\\Programs\\K2 Dynamic Island";
     g_ctx.createDesktopShortcut = true;
     g_ctx.launchAfterInstall = true;
+    g_ctx.startWithWindows = true;
 
     // Parse command line arguments safely
     int argc = 0;

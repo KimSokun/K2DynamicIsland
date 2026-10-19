@@ -9,7 +9,7 @@ namespace K2 {
 struct AppSettings {
     bool alwaysOnTop = true;
     bool reducedMotion = false;
-    bool launchAtStartup = false;
+    bool launchAtStartup = true;
     int compactWidth = 290;
     int compactHeight = 44;
     int expandedWidth = 480;

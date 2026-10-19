@@ -14,7 +14,7 @@
     settings: {
       alwaysOnTop: true,
       reducedMotion: false,
-      launchAtStartup: false,
+      launchAtStartup: true,
       compactWidth: 290,
       compactHeight: 44,
       expandedWidth: 480,
@@ -76,7 +76,7 @@
           settings: {
             alwaysOnTop: true,
             reducedMotion: false,
-            launchAtStartup: false,
+            launchAtStartup: true,
             compactWidth: 290,
             compactHeight: 44,
             expandedWidth: 480,
@@ -1124,6 +1124,10 @@
         elements.iconPlayPause.innerHTML = '<polygon points="5 3 19 12 5 21 5 3" fill="currentColor"></polygon>';
       }
     }
+    if (elements.btnMediaPlay) {
+      elements.btnMediaPlay.setAttribute('title', isPlaying ? 'Pause' : 'Play');
+      elements.btnMediaPlay.setAttribute('aria-label', isPlaying ? 'Pause' : 'Play');
+    }
     if (isPlaying && elements.mediaSessionTag && elements.mediaSessionTag.textContent === 'Audio Idle') {
       elements.mediaSessionTag.textContent = (media && media.appName) ? media.appName : 'Active';
     }
@@ -1283,15 +1287,22 @@
     if (elements.btnMediaPlay) {
       elements.btnMediaPlay.addEventListener('click', async (e) => {
         e.stopPropagation();
-        const currentlyPlaying = elements.musicDisc && elements.musicDisc.classList.contains('playing');
-        const nextState = !currentlyPlaying;
+        const wasPlaying = !!(state.mediaStatus && state.mediaStatus.isPlaying);
+        const nextState = !wasPlaying;
+
+        if (!state.mediaStatus) {
+          state.mediaStatus = { hasActiveSession: false, isPlaying: false, title: '', appName: 'Audio' };
+        }
+        state.mediaStatus.isPlaying = nextState;
+
         setMediaPlaying(nextState, state.mediaStatus);
+        updateCompactDisplay();
 
         elements.btnMediaPlay.style.transform = 'scale(0.88)';
         setTimeout(() => { if (elements.btnMediaPlay) elements.btnMediaPlay.style.transform = ''; }, 140);
 
         await callNative('media_command', { action: 'playPause' });
-        setTimeout(updateMediaStatus, 350);
+        setTimeout(updateMediaStatus, 500);
       });
     }
 
