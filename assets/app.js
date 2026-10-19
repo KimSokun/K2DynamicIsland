@@ -722,6 +722,7 @@
     if (state.settings.backgroundType === 'lively') {
       startLivelyAnimation();
     }
+    updateSystemStats();
   }
 
   async function collapseIsland() {
@@ -738,6 +739,7 @@
     }
 
     lastDynamicWidth = 0;
+    lastMediaKey = '';
     setTimeout(updateCompactDisplay, 50);
 
     initLivelyCanvas();
@@ -987,6 +989,7 @@
 
   // --- Live Metrics & Media ---
   async function updateSystemStats() {
+    if (!state.isExpanded) return;
     try {
       const res = await callNative('get_system_stats');
       if (res && res.success && res.stats) {
@@ -1020,12 +1023,17 @@
     const isPlaying = !!(m && m.isPlaying);
     const hasSession = !!(m && m.hasActiveSession);
 
-    // Keep mini-equalizer strictly bound to actual sound playback
+    // Keep mini-equalizer strictly bound to actual sound playback or active session
     if (elements.compactEqualizer) {
+      const showEq = hasSession || isPlaying;
+      elements.compactEqualizer.classList.toggle('visible', showEq);
       elements.compactEqualizer.classList.toggle('active', isPlaying);
       if (isPlaying && m) {
         const label = m.title ? `${m.title} (${m.appName || 'Audio'})` : (m.appName || 'Audio Active');
         elements.compactEqualizer.setAttribute('title', `Audio Activity: ${label}`);
+      } else if (hasSession && m) {
+        const label = m.title ? `${m.title} (${m.appName || 'Audio'})` : (m.appName || 'Audio Paused');
+        elements.compactEqualizer.setAttribute('title', `Audio Activity (Paused): ${label}`);
       } else {
         elements.compactEqualizer.setAttribute('title', 'Audio Activity (Idle)');
       }
@@ -1072,17 +1080,27 @@
     }
 
     // 3. If music is stopped/paused but media app (e.g. YouTube/Spotify) is open:
-    // Show ONLY platform, NO title, and audio activity not working
+    // Always show Platform + Separator + Track Title so Audio UI remains visible
     if (hasSession && m && m.appName) {
-      setDynamicPillWidth(215);
-      if (elements.compactCenterContent) elements.compactCenterContent.classList.remove('audio-active');
+      setDynamicPillWidth(290);
+      if (elements.compactCenterContent) elements.compactCenterContent.classList.add('audio-active');
       if (elements.compactBrand) elements.compactBrand.textContent = m.appName;
-      if (elements.compactSeparator) elements.compactSeparator.style.display = 'none';
+      if (elements.compactSeparator) elements.compactSeparator.style.display = 'inline';
       if (elements.compactSubtext) {
-        elements.compactSubtext.style.display = 'none';
-        elements.compactSubtext.classList.remove('marquee');
-        elements.compactSubtext.textContent = '';
-        elements.compactSubtext.removeAttribute('title');
+        elements.compactSubtext.style.display = 'inline-flex';
+        const titleText = (m.title && m.title !== m.appName) ? m.title : 'Audio Paused';
+        const fullTrack = (m.artist && m.artist !== m.appName) ? `${m.artist} - ${titleText}` : titleText;
+
+        elements.compactSubtext.title = fullTrack;
+        elements.compactSubtext.classList.add('marquee');
+        elements.compactSubtext.innerHTML = `
+          <span class="compact-marquee-content">
+            <span>${escapeHtml(fullTrack)}</span>
+            <span class="marquee-spacer">&bull;</span>
+            <span>${escapeHtml(fullTrack)}</span>
+            <span class="marquee-spacer">&bull;</span>
+          </span>
+        `;
       }
       return;
     }
@@ -1133,11 +1151,17 @@
     }
   }
 
+  let lastMediaKey = '';
   async function updateMediaStatus() {
     try {
       const res = await callNative('get_media_status');
       if (res && res.success && res.media) {
         const m = res.media;
+        const currentKey = `${m.isPlaying ? 1 : 0}|${m.hasActiveSession ? 1 : 0}|${m.appName || ''}|${m.title || ''}|${m.artist || ''}|${m.isMuted ? 1 : 0}`;
+        if (currentKey === lastMediaKey) {
+          return;
+        }
+        lastMediaKey = currentKey;
         state.mediaStatus = m;
         const isPlaying = !!(m.isPlaying);
 
@@ -1198,12 +1222,18 @@
       elements.capsuleCompact.addEventListener('click', (e) => {
         // Don't expand only if user clicked specifically on the drag handle
         if (e.target.closest('.drag-handle')) return;
+        if (state.mediaStatus && (state.mediaStatus.hasActiveSession || state.mediaStatus.isPlaying)) {
+          switchTab('media');
+        }
         expandIsland();
       });
 
       elements.capsuleCompact.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
+          if (state.mediaStatus && (state.mediaStatus.hasActiveSession || state.mediaStatus.isPlaying)) {
+            switchTab('media');
+          }
           expandIsland();
         }
       });

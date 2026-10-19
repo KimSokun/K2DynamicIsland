@@ -101,7 +101,12 @@ html, body {
   outline: none;
   clip-path: inset(0 round var(--radius-capsule));
   -webkit-clip-path: inset(0 round var(--radius-capsule));
-  transition: all 0.28s var(--ease-spring);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  will-change: transform, opacity;
   position: relative;
   overflow: hidden;
 }
@@ -136,7 +141,10 @@ html, body {
   background: rgba(13, 17, 24, 0.48);
   backdrop-filter: blur(14px) saturate(180%);
   -webkit-backdrop-filter: blur(14px) saturate(180%);
-  transition: background 0.25s ease, backdrop-filter 0.25s ease;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  will-change: transform;
+  transition: background 0.25s ease;
 }
 
 /* Keep compact pill contents above backdrops */
@@ -264,6 +272,8 @@ html, body {
   display: inline-flex;
   overflow: hidden;
   max-width: 175px;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
   mask-image: linear-gradient(90deg, transparent 0%, #000 6%, #000 94%, transparent 100%);
   -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 6%, #000 94%, transparent 100%);
 }
@@ -272,6 +282,8 @@ html, body {
   display: inline-flex;
   align-items: center;
   white-space: nowrap;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
   will-change: transform;
   animation: compact-marquee-scroll 12s linear infinite;
 }
@@ -300,7 +312,7 @@ html, body {
   font-weight: 500;
 }
 
-.mini-equalizer:not(.active) {
+.mini-equalizer:not(.visible):not(.active) {
   display: none !important;
 }
 
@@ -323,15 +335,23 @@ html, body {
   height: 14px;
   padding: 1px 2px;
   cursor: pointer;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
   transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
+.mini-equalizer.visible,
 .mini-equalizer.active {
   display: flex;
 }
 
+.mini-equalizer.visible:not(.active) .bar {
+  opacity: 0.65;
+  height: 4px;
+}
+
 .mini-equalizer:hover {
-  transform: scale(1.15);
+  transform: scale(1.15) translateZ(0);
 }
 
 .mini-equalizer .bar {
@@ -340,7 +360,10 @@ html, body {
   border-radius: 1px;
   height: 3px;
   opacity: 0.35;
-  transition: height 0.2s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease, box-shadow 0.2s ease;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  will-change: height, opacity;
+  transition: height 0.15s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.15s ease, box-shadow 0.15s ease;
 }
 
 .mini-equalizer.active .bar {
@@ -436,6 +459,11 @@ html, body {
   -webkit-backdrop-filter: blur(36px) saturate(180%);
   position: relative;
   transform-origin: top center;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  will-change: transform, opacity;
   animation: card-appear 0.22s var(--ease-spring);
 }
 

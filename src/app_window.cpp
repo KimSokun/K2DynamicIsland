@@ -477,7 +477,7 @@ void AppWindow::SetWindowSize(int width, int height) {
     m_currentWidth = physWidth;
     m_currentHeight = physHeight;
 
-    SetWindowPos(m_hWnd, NULL, newX, newY, physWidth, physHeight, SWP_NOZORDER | SWP_NOACTIVATE);
+    SetWindowPos(m_hWnd, NULL, newX, newY, physWidth, physHeight, SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOCOPYBITS);
     if (m_webViewManager) {
         m_webViewManager->Resize(physWidth, physHeight);
     }
@@ -486,7 +486,7 @@ void AppWindow::SetWindowSize(int width, int height) {
 
 void AppWindow::StartWindowDrag() {
     ReleaseCapture();
-    SendMessageW(m_hWnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+    PostMessageW(m_hWnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
 }
 
 void AppWindow::RecenterWindow() {

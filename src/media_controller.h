@@ -30,6 +30,11 @@ private:
     MediaController();
     void SendMediaKey(BYTE vkCode);
     ULONGLONG m_lastAudioPeakTick = 0;
+    HWND m_cachedMediaHwnd = nullptr;
+    std::string m_cachedAppName = "";
+    std::string m_cachedTitle = "";
+    std::string m_cachedArtist = "";
+    ULONGLONG m_lastFullHuntTick = 0;
 };
 
 } // namespace K2

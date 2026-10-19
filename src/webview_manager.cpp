@@ -94,6 +94,10 @@ bool WebViewManager::Initialize(const std::wstring& htmlPath) {
     std::wstring userDataDir = StorageManager::Instance().GetAppDataDirectory() + L"\\WebView2Cache";
     CreateDirectoryW(userDataDir.c_str(), NULL);
 
+    // Enforce high-performance GPU hardware acceleration and prevent background occlusion throttling
+    SetEnvironmentVariableW(L"WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+        L"--enable-gpu-rasterization --enable-zero-copy --disable-features=CalculateNativeWinOcclusion,BackgroundResourceBudget --disable-backgrounding-occluded-windows");
+
     HRESULT hr = pfnCreateEnv(
         nullptr,
         userDataDir.c_str(),

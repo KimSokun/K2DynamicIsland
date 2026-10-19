@@ -620,9 +620,48 @@ void UpdateManager::WorkerDownloadUpdate(std::string url, std::wstring targetPat
     }
 
     DWORD statusCode = 0;
-    DWORD statusCodeSize = sizeof(statusCode);
-    WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
-        WINHTTP_HEADER_NAME_BY_INDEX, &statusCode, &statusCodeSize, WINHTTP_NO_HEADER_INDEX);
+    int redirectCount = 0;
+    while (redirectCount < 5) {
+        DWORD statusCodeSize = sizeof(statusCode);
+        WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+            WINHTTP_HEADER_NAME_BY_INDEX, &statusCode, &statusCodeSize, WINHTTP_NO_HEADER_INDEX);
+
+        if (statusCode == 301 || statusCode == 302 || statusCode == 307 || statusCode == 308) {
+            DWORD locSize = 0;
+            WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_LOCATION, WINHTTP_HEADER_NAME_BY_INDEX, NULL, &locSize, WINHTTP_NO_HEADER_INDEX);
+            if (GetLastError() == ERROR_INSUFFICIENT_BUFFER && locSize > 0) {
+                std::vector<wchar_t> locBuf(locSize / sizeof(wchar_t) + 1, 0);
+                if (WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_LOCATION, WINHTTP_HEADER_NAME_BY_INDEX, locBuf.data(), &locSize, WINHTTP_NO_HEADER_INDEX)) {
+                    std::wstring newUrl = locBuf.data();
+                    WinHttpCloseHandle(hRequest);
+                    WinHttpCloseHandle(hConnect);
+
+                    URL_COMPONENTS newUrlComp = {};
+                    newUrlComp.dwStructSize = sizeof(newUrlComp);
+                    wchar_t newHost[256] = {};
+                    wchar_t newPath[2048] = {};
+                    newUrlComp.lpszHostName = newHost;
+                    newUrlComp.dwHostNameLength = 256;
+                    newUrlComp.lpszUrlPath = newPath;
+                    newUrlComp.dwUrlPathLength = 2048;
+
+                    if (WinHttpCrackUrl(newUrl.c_str(), (DWORD)newUrl.length(), 0, &newUrlComp)) {
+                        hConnect = WinHttpConnect(hSession, newHost, newUrlComp.nPort, 0);
+                        hRequest = WinHttpOpenRequest(hConnect, L"GET", newPath, NULL,
+                            WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES,
+                            (newUrlComp.nScheme == INTERNET_SCHEME_HTTPS ? WINHTTP_FLAG_SECURE : 0));
+                        WinHttpSetOption(hRequest, WINHTTP_OPTION_REDIRECT_POLICY, &redirectPolicy, sizeof(redirectPolicy));
+                        if (WinHttpSendRequest(hRequest, headers.c_str(), (DWORD)headers.length(), WINHTTP_NO_REQUEST_DATA, 0, 0, 0) &&
+                            WinHttpReceiveResponse(hRequest, NULL)) {
+                            redirectCount++;
+                            continue;
+                        }
+                    }
+                }
+            }
+        }
+        break;
+    }
 
     if (statusCode != 200) {
         CloseHandle(hFile);
@@ -753,11 +792,11 @@ bool UpdateManager::InstallUpdate(bool silent) {
         params += L" /S";
     }
 
-    // Standard Windows UAC elevation flow
+    // Run directly in current user session without UAC elevation (per-user installer)
     SHELLEXECUTEINFOW sei = { sizeof(sei) };
     sei.fMask = SEE_MASK_NOCLOSEPROCESS;
     sei.hwnd = NULL;
-    sei.lpVerb = L"runas"; // Elevate with UAC
+    sei.lpVerb = L"open"; // Current user profile
     sei.lpFile = installerPath.c_str();
     sei.lpParameters = params.c_str();
     sei.nShow = SW_SHOWNORMAL;

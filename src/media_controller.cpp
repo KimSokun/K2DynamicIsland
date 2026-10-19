@@ -203,6 +203,7 @@ static void ExtractTrackMetadata(const std::string& appExe, const std::wstring& 
 }
 
 struct MediaWindowHunt {
+    HWND hWnd = nullptr;
     std::string appName = "";
     std::string title = "";
     std::string artist = "";
@@ -236,6 +237,7 @@ static BOOL CALLBACK HuntMediaWindowsProc(HWND hWnd, LPARAM lParam) {
             if (QueryFullProcessImageNameW(hP, 0, pPath, &sz)) {
                 std::wstring exeName = PathFindFileNameW(pPath);
                 if (_wcsicmp(exeName.c_str(), L"spotify.exe") == 0) {
+                    hunt->hWnd = hWnd;
                     hunt->appName = "Spotify";
                     size_t dash = titleUtf8.find(" - ");
                     hunt->artist = titleUtf8.substr(0, dash);
@@ -251,6 +253,7 @@ static BOOL CALLBACK HuntMediaWindowsProc(HWND hWnd, LPARAM lParam) {
 
     // Check YouTube in browser window
     if (titleUtf8.find("YouTube") != std::string::npos) {
+        hunt->hWnd = hWnd;
         hunt->appName = "YouTube";
         size_t ytPos = titleUtf8.find(" - YouTube");
         if (ytPos != std::string::npos) {
@@ -281,6 +284,7 @@ static BOOL CALLBACK HuntMediaWindowsProc(HWND hWnd, LPARAM lParam) {
             }
         }
         if (hunt->title.empty()) hunt->title = "YouTube Video";
+        hunt->hWnd = hWnd;
         hunt->found = true;
         return FALSE;
     }
@@ -289,13 +293,11 @@ static BOOL CALLBACK HuntMediaWindowsProc(HWND hWnd, LPARAM lParam) {
 }
 
 MediaStatus MediaController::GetStatus() {
-    K2::Log("Media: GetStatus ENTER");
     MediaStatus status;
 
     IMMDeviceEnumerator* pEnumerator = nullptr;
     HRESULT hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_ALL,
         __uuidof(IMMDeviceEnumerator), (void**)&pEnumerator);
-    K2::Log("Media: CoCreateInstance hr=" + std::to_string(hr));
 
     if (SUCCEEDED(hr) && pEnumerator) {
         IMMDevice* pDevice = nullptr;
@@ -402,45 +404,111 @@ MediaStatus MediaController::GetStatus() {
             pDevice->Release();
         }
 
-        // Also check all active audio endpoints to ensure USB/Bluetooth/Headphone peak is captured
-        IMMDeviceCollection* pCol = nullptr;
-        if (SUCCEEDED(pEnumerator->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &pCol)) && pCol) {
-            UINT devCount = 0;
-            pCol->GetCount(&devCount);
-            for (UINT d = 0; d < devCount; ++d) {
-                IMMDevice* pDevItem = nullptr;
-                if (SUCCEEDED(pCol->Item(d, &pDevItem)) && pDevItem) {
-                    IAudioMeterInformation* pM = nullptr;
-                    if (SUCCEEDED(pDevItem->Activate(__uuidof(IAudioMeterInformation), CLSCTX_ALL, NULL, (void**)&pM)) && pM) {
-                        float pVal = 0.0f;
-                        if (SUCCEEDED(pM->GetPeakValue(&pVal)) && pVal > status.peakLevel) {
-                            status.peakLevel = pVal;
+        // Only scan secondary audio endpoints if peak is still 0
+        if (status.peakLevel <= 0.0001f) {
+            IMMDeviceCollection* pCol = nullptr;
+            if (SUCCEEDED(pEnumerator->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &pCol)) && pCol) {
+                UINT devCount = 0;
+                pCol->GetCount(&devCount);
+                for (UINT d = 0; d < devCount; ++d) {
+                    IMMDevice* pDevItem = nullptr;
+                    if (SUCCEEDED(pCol->Item(d, &pDevItem)) && pDevItem) {
+                        IAudioMeterInformation* pM = nullptr;
+                        if (SUCCEEDED(pDevItem->Activate(__uuidof(IAudioMeterInformation), CLSCTX_ALL, NULL, (void**)&pM)) && pM) {
+                            float pVal = 0.0f;
+                            if (SUCCEEDED(pM->GetPeakValue(&pVal)) && pVal > status.peakLevel) {
+                                status.peakLevel = pVal;
+                            }
+                            pM->Release();
                         }
-                        pM->Release();
+                        pDevItem->Release();
                     }
-                    pDevItem->Release();
                 }
+                pCol->Release();
             }
-            pCol->Release();
         }
 
         pEnumerator->Release();
     }
-    K2::Log("Media: Sessions done peak=" + std::to_string(status.peakLevel));
 
-    // Always hunt for active YouTube or Spotify windows to ensure precise track title & platform
-    MediaWindowHunt hunt;
-    EnumWindows(HuntMediaWindowsProc, reinterpret_cast<LPARAM>(&hunt));
-    K2::Log("Media: Hunt done found=" + std::string(hunt.found ? "true" : "false"));
-    if (hunt.found) {
+    // High-performance cached check for active YouTube or Spotify windows
+    bool huntFound = false;
+    std::string huntApp = "";
+    std::string huntTitle = "";
+    std::string huntArtist = "";
+
+    if (m_cachedMediaHwnd && IsWindow(m_cachedMediaHwnd) && IsWindowVisible(m_cachedMediaHwnd)) {
+        wchar_t buf[512] = {};
+        int len = GetWindowTextW(m_cachedMediaHwnd, buf, 512);
+        if (len > 0) {
+            std::string titleUtf8 = Utf16ToUtf8Str(std::wstring(buf));
+            if (m_cachedAppName == "Spotify") {
+                if (titleUtf8.find(" - ") != std::string::npos &&
+                    titleUtf8 != "Spotify Free" && titleUtf8 != "Spotify Premium" && titleUtf8 != "Spotify") {
+                    huntFound = true;
+                    huntApp = "Spotify";
+                    size_t dash = titleUtf8.find(" - ");
+                    huntArtist = titleUtf8.substr(0, dash);
+                    huntTitle = titleUtf8.substr(dash + 3);
+                }
+            } else if (m_cachedAppName == "YouTube") {
+                if (titleUtf8.find("YouTube") != std::string::npos) {
+                    huntFound = true;
+                    huntApp = "YouTube";
+                    size_t ytPos = titleUtf8.find(" - YouTube");
+                    if (ytPos != std::string::npos) {
+                        std::string raw = titleUtf8.substr(0, ytPos);
+                        if (raw.size() > 3 && raw[0] == '(' && raw.find(") ") != std::string::npos) {
+                            raw = raw.substr(raw.find(") ") + 2);
+                        }
+                        size_t dash = raw.find(" - ");
+                        if (dash != std::string::npos) {
+                            huntArtist = raw.substr(0, dash);
+                            huntTitle = raw.substr(dash + 3);
+                        } else {
+                            huntTitle = raw;
+                        }
+                    } else {
+                        size_t bDash = titleUtf8.find(" - ");
+                        if (bDash != std::string::npos && bDash > 0) {
+                            std::string raw = titleUtf8.substr(0, bDash);
+                            huntTitle = (raw != "YouTube") ? raw : "YouTube Video";
+                        } else {
+                            huntTitle = "YouTube Video";
+                        }
+                    }
+                }
+            }
+        }
+        if (!huntFound) {
+            m_cachedMediaHwnd = nullptr;
+        }
+    }
+
+    ULONGLONG now = GetTickCount64();
+    // If not found in cache, only run full OS EnumWindows hunt if sound is active or throttled interval (2.5s)
+    if (!huntFound && (status.peakLevel > 0.0005f || (now - m_lastFullHuntTick >= 2500))) {
+        MediaWindowHunt hunt;
+        EnumWindows(HuntMediaWindowsProc, reinterpret_cast<LPARAM>(&hunt));
+        m_lastFullHuntTick = now;
+        if (hunt.found) {
+            m_cachedMediaHwnd = hunt.hWnd;
+            m_cachedAppName = hunt.appName;
+            huntFound = true;
+            huntApp = hunt.appName;
+            huntTitle = hunt.title;
+            huntArtist = hunt.artist;
+        }
+    }
+
+    if (huntFound) {
         status.hasActiveSession = true;
-        status.appName = hunt.appName;
-        if (!hunt.title.empty()) status.title = hunt.title;
-        if (!hunt.artist.empty()) status.artist = hunt.artist;
+        status.appName = huntApp;
+        if (!huntTitle.empty()) status.title = huntTitle;
+        if (!huntArtist.empty()) status.artist = huntArtist;
     }
 
     // Determine actual playback status with sensitive audio threshold (> 0.0005f)
-    ULONGLONG now = GetTickCount64();
     if (status.peakLevel > 0.0005f) {
         m_lastAudioPeakTick = now;
         status.isPlaying = true;
@@ -450,8 +518,8 @@ MediaStatus MediaController::GetStatus() {
             status.title = "System Audio";
         }
     } else {
-        // Bridge micro-pauses between musical notes for 400ms
-        if (m_lastAudioPeakTick != 0 && (now - m_lastAudioPeakTick) < 400ULL) {
+        // Retain playing state for 1.2s to prevent brief silent gap flickering
+        if (now - m_lastAudioPeakTick < 1200) {
             status.isPlaying = true;
         } else {
             status.isPlaying = false;
@@ -466,7 +534,6 @@ MediaStatus MediaController::GetStatus() {
         status.statusText = "Idle";
     }
 
-    K2::Log("Media: GetStatus LEAVE");
     return status;
 }
 

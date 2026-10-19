@@ -138,14 +138,6 @@ static bool LaunchViaShellCOM(const std::wstring& exePath, const std::wstring& w
 }
 
 static void LaunchApp(const std::wstring& exePath, const std::wstring& workDir, const std::wstring& args = L"") {
-    // 1. Try launching through Explorer's Shell COM interface.
-    // This executes the process directly in the user's desktop shell session,
-    // completely detached from the installer process, console, and Job Objects (e.g. PowerShell Start-Process -Wait).
-    if (LaunchViaShellCOM(exePath, workDir, args)) {
-        return;
-    }
-
-    // 2. Direct decoupled process creation fallback
     STARTUPINFOW si = { sizeof(si) };
     PROCESS_INFORMATION pi = {};
     std::wstring cmdLine = L"\"" + exePath + L"\"";
@@ -155,19 +147,14 @@ static void LaunchApp(const std::wstring& exePath, const std::wstring& workDir, 
     std::vector<wchar_t> cmdBuf(cmdLine.begin(), cmdLine.end());
     cmdBuf.push_back(L'\0');
 
-    // Launch directly decoupled from parent process. Try with CREATE_BREAKAWAY_FROM_JOB, then fallback to 0.
-    if (CreateProcessW(NULL, cmdBuf.data(), NULL, NULL, FALSE, CREATE_BREAKAWAY_FROM_JOB, NULL, workDir.c_str(), &si, &pi)) {
-        CloseHandle(pi.hProcess);
-        CloseHandle(pi.hThread);
-        return;
-    }
+    // Launch directly in user desktop session
     if (CreateProcessW(NULL, cmdBuf.data(), NULL, NULL, FALSE, 0, NULL, workDir.c_str(), &si, &pi)) {
         CloseHandle(pi.hProcess);
         CloseHandle(pi.hThread);
         return;
     }
 
-    // Direct ShellExecute fallback (directly invoking the executable, NEVER explorer.exe)
+    // Direct ShellExecute fallback (never invokes explorer.exe)
     ShellExecuteW(NULL, L"open", exePath.c_str(), args.empty() ? NULL : args.c_str(), workDir.c_str(), SW_SHOWNORMAL);
 }
 
@@ -178,16 +165,16 @@ static DWORD WINAPI InstallThreadProc(LPVOID lpParam) {
 
     // 1. Preparing
     PostMessageW(ctx->hWnd, WM_INSTALL_PROGRESS, 10, (LPARAM)L"Preparing installation...");
-    if (ctx->hWnd) Sleep(100);
+    if (ctx->hWnd) Sleep(50);
 
-    // Forcibly terminate any running instance of K2DynamicIsland.exe so files and mutex are freed
+    // Unconditionally terminate any running instance of K2DynamicIsland.exe to release file locks
     PostMessageW(ctx->hWnd, WM_INSTALL_PROGRESS, 15, (LPARAM)L"Stopping running application instance...");
     HWND hExist = FindWindowW(L"K2DynamicIslandWindowClass", L"K2 Dynamic Island");
     if (hExist) {
         PostMessageW(hExist, WM_CLOSE, 0, 0);
-        system("taskkill /f /im K2DynamicIsland.exe 2>nul");
-        if (ctx->hWnd) Sleep(200);
     }
+    system("taskkill /f /im K2DynamicIsland.exe 2>nul");
+    Sleep(300);
 
     // Clear stale WebView2 cache synchronously if present before extraction
     wchar_t appDataPath[MAX_PATH] = {};
@@ -254,38 +241,40 @@ static DWORD WINAPI InstallThreadProc(LPVOID lpParam) {
 
     // 4. Extracting files
     PostMessageW(ctx->hWnd, WM_INSTALL_PROGRESS, 50, (LPARAM)L"Installing application files...");
-    std::wstring cmd = L"/c tar.exe -xf \"" + tempZip + L"\" -C \"" + ctx->installDir + L"\"";
     bool tarSuccess = false;
-    SHELLEXECUTEINFOW sei = {};
-    sei.cbSize = sizeof(sei);
-    sei.fMask = SEE_MASK_NOCLOSEPROCESS;
-    sei.lpVerb = L"open";
-    sei.lpFile = L"cmd.exe";
-    sei.lpParameters = cmd.c_str();
-    sei.nShow = SW_HIDE;
 
-    if (ShellExecuteExW(&sei) && sei.hProcess) {
-        if (WaitForSingleObject(sei.hProcess, 15000) == WAIT_OBJECT_0) {
+    // Direct tar.exe execution without cmd.exe to avoid quote-stripping bugs on paths with spaces
+    std::wstring tarCmd = L"tar.exe -xf \"" + tempZip + L"\" -C \"" + ctx->installDir + L"\"";
+    STARTUPINFOW tarSi = { sizeof(tarSi) };
+    tarSi.dwFlags = STARTF_USESHOWWINDOW;
+    tarSi.wShowWindow = SW_HIDE;
+    PROCESS_INFORMATION tarPi = {};
+    std::vector<wchar_t> tarBuf(tarCmd.begin(), tarCmd.end());
+    tarBuf.push_back(L'\0');
+
+    if (CreateProcessW(NULL, tarBuf.data(), NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &tarSi, &tarPi)) {
+        if (WaitForSingleObject(tarPi.hProcess, 20000) == WAIT_OBJECT_0) {
             DWORD exitCode = 1;
-            GetExitCodeProcess(sei.hProcess, &exitCode);
+            GetExitCodeProcess(tarPi.hProcess, &exitCode);
             tarSuccess = (exitCode == 0);
         }
-        CloseHandle(sei.hProcess);
+        CloseHandle(tarPi.hProcess);
+        CloseHandle(tarPi.hThread);
     }
 
     // Fallback extraction via PowerShell if tar did not succeed
     if (!tarSuccess) {
-        std::wstring psCmd = L"-NoProfile -ExecutionPolicy Bypass -Command \"Expand-Archive -LiteralPath '" + tempZip + L"' -DestinationPath '" + ctx->installDir + L"' -Force\"";
-        SHELLEXECUTEINFOW psSei = {};
-        psSei.cbSize = sizeof(psSei);
-        psSei.fMask = SEE_MASK_NOCLOSEPROCESS;
-        psSei.lpVerb = L"open";
-        psSei.lpFile = L"powershell.exe";
-        psSei.lpParameters = psCmd.c_str();
-        psSei.nShow = SW_HIDE;
-        if (ShellExecuteExW(&psSei) && psSei.hProcess) {
-            WaitForSingleObject(psSei.hProcess, 30000);
-            CloseHandle(psSei.hProcess);
+        std::wstring psCmd = L"powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"Expand-Archive -LiteralPath '" + tempZip + L"' -DestinationPath '" + ctx->installDir + L"' -Force\"";
+        STARTUPINFOW psSi = { sizeof(psSi) };
+        psSi.dwFlags = STARTF_USESHOWWINDOW;
+        psSi.wShowWindow = SW_HIDE;
+        PROCESS_INFORMATION psPi = {};
+        std::vector<wchar_t> psBuf(psCmd.begin(), psCmd.end());
+        psBuf.push_back(L'\0');
+        if (CreateProcessW(NULL, psBuf.data(), NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &psSi, &psPi)) {
+            WaitForSingleObject(psPi.hProcess, 30000);
+            CloseHandle(psPi.hProcess);
+            CloseHandle(psPi.hThread);
         }
     }
 
@@ -316,7 +305,7 @@ static DWORD WINAPI InstallThreadProc(LPVOID lpParam) {
     const wchar_t* uninstSubKey = L"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\K2DynamicIsland";
     if (RegCreateKeyExW(HKEY_CURRENT_USER, uninstSubKey, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hUninstKey, NULL) == ERROR_SUCCESS) {
         const wchar_t* appName = L"K2 Dynamic Island";
-        const wchar_t* appVer = L"1.1.1";
+        const wchar_t* appVer = L"1.1.2";
         const wchar_t* publisher = L"K2 Studio";
         std::wstring uninstCmd = L"\"" + ctx->installDir + L"\\Uninstall.exe\"";
         std::wstring iconPath = L"\"" + targetExe + L"\",0";
