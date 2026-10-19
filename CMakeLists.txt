@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(K2DynamicIsland VERSION 1.1.1 LANGUAGES CXX RC)
+project(K2DynamicIsland VERSION 1.1.3 LANGUAGES CXX RC)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

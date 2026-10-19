@@ -8,6 +8,7 @@
 #include <iostream>
 #include <vector>
 #include <algorithm>
+#include <chrono>
 
 #ifndef __IAudioMeterInformation_INTERFACE_DEFINED__
 #define __IAudioMeterInformation_INTERFACE_DEFINED__
@@ -33,15 +34,76 @@ MediaController& MediaController::Instance() {
 }
 
 MediaController::MediaController() {
+    UpdateStatusInternal();
+    m_running.store(true);
+    m_workerThread = std::thread(&MediaController::WorkerLoop, this);
+}
+
+MediaController::~MediaController() {
+    m_running.store(false);
+    if (m_workerThread.joinable()) {
+        m_workerThread.join();
+    }
+}
+
+void MediaController::WorkerLoop() {
+    HRESULT hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
+    bool needUninit = SUCCEEDED(hr);
+
+    while (m_running.load()) {
+        UpdateStatusInternal();
+
+        for (int i = 0; i < 35 && m_running.load(); ++i) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+    }
+
+    if (needUninit) {
+        CoUninitialize();
+    }
+}
+
+MediaStatus MediaController::GetStatus() {
+    std::lock_guard<std::mutex> lock(m_statusMutex);
+    return m_cachedStatus;
 }
 
 void MediaController::SendMediaKey(BYTE vkCode) {
-    keybd_event(vkCode, 0, KEYEVENTF_EXTENDEDKEY, 0);
-    keybd_event(vkCode, 0, KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP, 0);
+    DWORD cmd = 0;
+    if (vkCode == VK_MEDIA_PLAY_PAUSE) cmd = APPCOMMAND_MEDIA_PLAY_PAUSE;
+    else if (vkCode == VK_MEDIA_NEXT_TRACK) cmd = APPCOMMAND_MEDIA_NEXTTRACK;
+    else if (vkCode == VK_MEDIA_PREV_TRACK) cmd = APPCOMMAND_MEDIA_PREVIOUSTRACK;
+    else if (vkCode == VK_VOLUME_MUTE) cmd = APPCOMMAND_VOLUME_MUTE;
+
+    if (cmd != 0 && m_cachedMediaHwnd && IsWindow(m_cachedMediaHwnd)) {
+        PostMessageW(m_cachedMediaHwnd, WM_APPCOMMAND, 0, MAKELPARAM(0, cmd));
+    }
+
+    INPUT inputs[2] = {};
+    inputs[0].type = INPUT_KEYBOARD;
+    inputs[0].ki.wVk = vkCode;
+    inputs[0].ki.dwFlags = KEYEVENTF_EXTENDEDKEY;
+
+    inputs[1].type = INPUT_KEYBOARD;
+    inputs[1].ki.wVk = vkCode;
+    inputs[1].ki.dwFlags = KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP;
+
+    SendInput(2, inputs, sizeof(INPUT));
 }
 
 bool MediaController::PlayPause() {
     SendMediaKey(VK_MEDIA_PLAY_PAUSE);
+    {
+        std::lock_guard<std::mutex> lock(m_statusMutex);
+        m_cachedStatus.isPlaying = !m_cachedStatus.isPlaying;
+        if (m_cachedStatus.isPlaying) {
+            m_cachedStatus.statusText = "Playing in " + (m_cachedStatus.appName.empty() ? "System Audio" : m_cachedStatus.appName);
+            m_lastAudioPeakTick = GetTickCount64();
+        } else {
+            m_cachedStatus.statusText = (m_cachedStatus.appName.empty() ? "Audio" : m_cachedStatus.appName) + " (Paused)";
+            m_lastAudioPeakTick = 0;
+        }
+    }
     return true;
 }
 
@@ -291,7 +353,7 @@ static BOOL CALLBACK HuntMediaWindowsProc(HWND hWnd, LPARAM lParam) {
     return TRUE;
 }
 
-MediaStatus MediaController::GetStatus() {
+void MediaController::UpdateStatusInternal() {
     MediaStatus status;
 
     IMMDeviceEnumerator* pEnumerator = nullptr;
@@ -533,7 +595,10 @@ MediaStatus MediaController::GetStatus() {
         status.statusText = "Idle";
     }
 
-    return status;
+    {
+        std::lock_guard<std::mutex> lock(m_statusMutex);
+        m_cachedStatus = status;
+    }
 }
 
 } // namespace K2
