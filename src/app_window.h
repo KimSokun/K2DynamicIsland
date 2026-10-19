@@ -4,6 +4,9 @@
 #include <shellapi.h>
 #include <string>
 #include <memory>
+#include <functional>
+#include <vector>
+#include <mutex>
 #include "json.hpp"
 
 namespace K2 {
@@ -39,6 +42,8 @@ public:
     void ShowWindow() override;
     void CloseApp() override;
 
+    void DispatchToUI(std::function<void()> fn);
+
     HWND GetHwnd() const { return m_hWnd; }
     WebViewManager* GetWebViewManager() const { return m_webViewManager.get(); }
 
@@ -53,6 +58,8 @@ private:
     void HookChildDropTargets();
 
     HWND m_hWnd = NULL;
+    std::mutex m_uiDispatchMutex;
+    std::vector<std::function<void()>> m_uiDispatchQueue;
     std::unique_ptr<BridgeDispatcher> m_dispatcher;
     std::unique_ptr<WebViewManager> m_webViewManager;
     class DropTarget* m_dropTarget = nullptr;

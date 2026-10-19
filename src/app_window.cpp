@@ -11,6 +11,7 @@
 #include <vector>
 
 #define WM_TRAYICON (WM_APP + 1)
+#define WM_APP_DISPATCH_EVENT (WM_APP + 2)
 #define ID_TRAY_OPEN 1001
 #define ID_TRAY_SETTINGS 1002
 #define ID_TRAY_EXIT 1003
@@ -115,6 +116,7 @@ bool AppWindow::Create() {
         exStyle |= WS_EX_TOPMOST;
     }
 
+    K2::Log("AppWindow::Create calling CreateWindowExW");
     m_hWnd = CreateWindowExW(
         exStyle,
         CLASS_NAME,
@@ -178,11 +180,13 @@ bool AppWindow::Create() {
         return false;
     }
 
-    // Initialize UpdateManager with WebView2 event dispatcher
+    // Initialize UpdateManager with UI thread dispatched event handler
     UpdateManager::Instance().Initialize([this](const std::string& event, const nlohmann::json& data) {
-        if (m_webViewManager) {
-            m_webViewManager->PostEvent(event, data);
-        }
+        DispatchToUI([this, event, data]() {
+            if (m_webViewManager) {
+                m_webViewManager->PostEvent(event, data);
+            }
+        });
     });
 
     HookChildDropTargets();
@@ -201,6 +205,17 @@ void AppWindow::RunMessageLoop() {
     while (GetMessageW(&msg, NULL, 0, 0)) {
         TranslateMessage(&msg);
         DispatchMessageW(&msg);
+    }
+}
+
+void AppWindow::DispatchToUI(std::function<void()> fn) {
+    if (!fn) return;
+    {
+        std::lock_guard<std::mutex> lock(m_uiDispatchMutex);
+        m_uiDispatchQueue.push_back(std::move(fn));
+    }
+    if (m_hWnd) {
+        PostMessageW(m_hWnd, WM_APP_DISPATCH_EVENT, 0, 0);
     }
 }
 
@@ -224,6 +239,18 @@ LRESULT CALLBACK AppWindow::WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 
 LRESULT AppWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
+    case WM_APP_DISPATCH_EVENT: {
+        std::vector<std::function<void()>> tasks;
+        {
+            std::lock_guard<std::mutex> lock(m_uiDispatchMutex);
+            tasks.swap(m_uiDispatchQueue);
+        }
+        for (auto& task : tasks) {
+            if (task) task();
+        }
+        return 0;
+    }
+
     case WM_TIMER:
         if (wParam == IDT_UPDATE_CHECK) {
             KillTimer(m_hWnd, IDT_UPDATE_CHECK);
@@ -289,6 +316,7 @@ LRESULT AppWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
             CloseApp();
             break;
         }
+        return 0;
     case WM_EXITSIZEMOVE: {
         RECT rc;
         if (GetWindowRect(m_hWnd, &rc)) {

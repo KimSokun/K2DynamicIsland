@@ -18,10 +18,10 @@ namespace K2 {
 static std::wstring Utf8ToUtf16(const std::string& utf8) {
     if (utf8.empty()) return L"";
     int len = MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1, NULL, 0);
-    if (len <= 0) return L"";
-    std::wstring utf16(len - 1, L'\0');
-    MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1, &utf16[0], len);
-    return utf16;
+    if (len <= 1) return L"";
+    std::vector<wchar_t> buf(len, 0);
+    MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1, buf.data(), len);
+    return std::wstring(buf.data());
 }
 
 static std::string Utf16ToUtf8(const std::wstring& utf16) {
